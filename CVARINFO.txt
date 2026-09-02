@@ -26,3 +26,7 @@ user bool  rs_handhud_always = false;
 
 // The status bar face on the vitals plate.
 user bool  rs_handhud_mugshot = true;
+
+// Once a second on the console: both wrist rolls, the gate verdicts, whether
+// each layer is up, and the numbers being painted.
+user bool  rs_handhud_debug = false;

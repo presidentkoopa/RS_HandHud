@@ -39,6 +39,14 @@ class RS_HandHUDPlateMain : Inventory
 		+INVENTORY.UNDROPPABLE
 		+INVENTORY.UNTOSSABLE
 		+INVENTORY.QUIET
+		// REQUIRED, and it is what was missing on the first build: with a TNT1
+		// Spawn state there is no FrameIndex for the model lookup to hit, so
+		// the psprite has to resolve its model through BaseSpriteModelFrames
+		// (MODELDEF BaseFrame) -- and that path is only consulted for a
+		// +DECOUPLEDANIMATIONS actor. Without the flag the layer fell through
+		// to the sprite path and drew nothing. Same flag on RS_HandIdle and
+		// RR_AmmoInHand, for the same reason.
+		+DECOUPLEDANIMATIONS
 	}
 	States
 	{
@@ -120,6 +128,16 @@ class RS_HandHUD : EventHandler
 		double fade = max(1.0, cvNum("rs_handhud_fade", p, 6.0));
 		double scale = cvNum("rs_handhud_scale", p, 1.0);
 		if (scale <= 0.0) scale = 1.0;
+
+		bool dbg = cvOn("rs_handhud_debug", p, false);
+		if (dbg && (level.time % 35) == 0)
+		{
+			// Once a second: the two rolls the gate reads, so the targets can
+			// be set from real numbers instead of guessed signs.
+			Console.Printf("[HandHUD] roll main %.0f off %.0f | gate main %d off %d | layers %d %d | wep %s %d/%d +%d | hp %d ar %d keys %d",
+				pmo.MainHandRoll, pmo.OffhandRoll, Gate(p, pmo, 0), Gate(p, pmo, 1), mLayerUp[0], mLayerUp[1],
+				mWepNone ? "none" : "ok", mWepLoaded, mWepCap, mWepPool, mHealth, mArmor, mKeyIcons.Size());
+		}
 
 		for (int h = 0; h < 2; h++)
 		{
