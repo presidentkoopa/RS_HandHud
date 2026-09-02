@@ -1,7 +1,10 @@
-// RS_HandHud -- readouts on the wrists. One page.
-AddOptionMenu "OptionsMenu"
+// RS_HandHud -- readouts on the wrists. One page, listed under
+// RS_VR_Unified's "Unified VR HUD and Interaction Options" hub rather than
+// in the main Options menu. AddOptionMenu appends to a menu defined in an
+// earlier pk3, which is why this package has to load after that one.
+AddOptionMenu "RS_VRUnifiedOptions"
 {
-	Submenu "RS Hand HUD", "RS_HandHUDOptions"
+	Submenu "Hand HUD", "RS_HandHUDOptions"
 }
 
 OptionMenu "RS_HandHUDOptions"
