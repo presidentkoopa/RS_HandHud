@@ -1,0 +1,4 @@
+// RS_HandHud -- the two plate skins, painted by zscript/rs_handhud.zs.
+// Sizes must match RS_HandHUD.CANVAS_W/H.
+canvastexture RSHUDMAIN 256 128 fit 256 128 WorldPanning
+canvastexture RSHUDOFF  256 128 fit 256 128 WorldPanning

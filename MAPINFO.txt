@@ -1,0 +1,8 @@
+// RS_HandHud -- one handler. AddEventHandlers APPENDS across pk3s, so this
+// lands after whatever RS_VR_Unified registered, which is where it belongs:
+// it draws on layers beside the hands' and reads the wheel's and the
+// reload's resolvers for its numbers.
+GameInfo
+{
+	AddEventHandlers = "RS_HandHUD"
+}

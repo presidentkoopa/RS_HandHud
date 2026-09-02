@@ -1,0 +1,12 @@
+// RS_HandHud -- the HUD on your hands.
+//
+// A COMPANION to RS_VR_Unified, loaded AFTER it. It reads that package's
+// classes directly -- wr_Stats and wr_Rig (wheel), RR_Feed and RR_Mag
+// (reload), RS_HandFist (hands) -- and ZScript resolves symbols across every
+// loaded pk3, so those links are fine as long as both are loaded. Loaded on
+// its own it does not degrade, it fails to compile: "Unknown identifier".
+//
+// Same version as the package it rides on.
+version "5.0.0"
+
+#include "zscript/rs_handhud.zs"
