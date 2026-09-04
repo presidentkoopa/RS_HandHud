@@ -15,7 +15,9 @@ OptionMenu "RS_HandHUDOptions"
 	StaticText "Roll a wrist toward your face to read it.", "DarkGray"
 	StaticText ""
 	Option "Hand HUD",                 "rs_handhud",         "OnOff"
-	Slider "Plate size",               "rs_handhud_scale",   0.3, 3.0, 0.1, 1
+	Slider "Plate size",               "rs_handhud_scale",   0.5, 20.0, 0.5, 1
+	Submenu "Place the main-hand plate", "RS_HandHUDPlaceMain"
+	Submenu "Place the off-hand plate",  "RS_HandHUDPlaceOff"
 	Option "Swap hands (left-handed)", "rs_handhud_swap",    "OnOff"
 	Option "Show the mugshot",         "rs_handhud_mugshot", "OnOff"
 	StaticText ""
@@ -27,4 +29,34 @@ OptionMenu "RS_HandHUDOptions"
 	Slider "Fade (tics)",                "rs_handhud_fade",      1, 20, 1, 0
 	StaticText ""
 	Option "Console readout (once a second)", "rs_handhud_debug", "OnOff"
+}
+
+OptionMenu "RS_HandHUDPlaceMain"
+{
+	Title "Main-hand plate"
+	StaticText "Turn 'Always shown' on first, or the plate keeps", "DarkGray"
+	StaticText "fading out while you are looking at it.", "DarkGray"
+	StaticText ""
+	Slider "Left / Right",   "rs_handhud_m_ofs_x", -24, 24, 0.25, 2
+	Slider "Forward / Back", "rs_handhud_m_ofs_y", -24, 24, 0.25, 2
+	Slider "Down / Up",      "rs_handhud_m_ofs_z", -24, 24, 0.25, 2
+	StaticText ""
+	Slider "Yaw",   "rs_handhud_m_yaw",   -180, 180, 5, 0
+	Slider "Pitch", "rs_handhud_m_pitch", -180, 180, 5, 0
+	Slider "Roll",  "rs_handhud_m_roll",  -180, 180, 5, 0
+}
+
+OptionMenu "RS_HandHUDPlaceOff"
+{
+	Title "Off-hand plate"
+	StaticText "Turn 'Always shown' on first, or the plate keeps", "DarkGray"
+	StaticText "fading out while you are looking at it.", "DarkGray"
+	StaticText ""
+	Slider "Left / Right",   "rs_handhud_o_ofs_x", -24, 24, 0.25, 2
+	Slider "Forward / Back", "rs_handhud_o_ofs_y", -24, 24, 0.25, 2
+	Slider "Down / Up",      "rs_handhud_o_ofs_z", -24, 24, 0.25, 2
+	StaticText ""
+	Slider "Yaw",   "rs_handhud_o_yaw",   -180, 180, 5, 0
+	Slider "Pitch", "rs_handhud_o_pitch", -180, 180, 5, 0
+	Slider "Roll",  "rs_handhud_o_roll",  -180, 180, 5, 0
 }

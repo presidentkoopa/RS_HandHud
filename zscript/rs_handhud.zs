@@ -190,6 +190,35 @@ class RS_HandHUD : EventHandler
 		}
 		psp.scale = (scale, scale);
 		psp.alpha = alpha;
+
+		// ANCHORED TO THE HAND, which is what makes the placement sliders
+		// below do anything at all: AnchorOfs and AnchorAngles are only read
+		// for an ANCHORED layer (r_data/models.cpp -- `isAnchored ?
+		// psp->AnchorOfs.X : 0`), and an unanchored psprite has no runtime
+		// offset of any kind, only its baked MODELDEF numbers.
+		//
+		// Anchoring also puts the plate on the hand's palm BONE rather than
+		// the controller origin, so it stays where you put it when the hand's
+		// own placement sliders move.
+		//
+		// The hand's layer has to be DRAWN first -- psprites draw in id order
+		// and a bone is only known once its model has been drawn -- which is
+		// why these ids (900020 / 1900020) sit above the hands' (900000 /
+		// 1900000). Literals rather than RS_Hands' consts: this is a separate
+		// package and should not need that class to exist. With rs_hands off
+		// there is no hand model to anchor to, the engine ignores the anchor,
+		// and the plate falls back to its MODELDEF offsets.
+		psp.AnchorLayer = (hand == 0) ? 900000 : 1900000;
+		psp.AnchorBone  = 'HANDPALM_joint';
+
+		String pre = (hand == 0) ? "rs_handhud_m" : "rs_handhud_o";
+		psp.AnchorOfs = (cvNum(pre .. "_ofs_x", p, 0.0),
+		                 cvNum(pre .. "_ofs_y", p, 0.0),
+		                 cvNum(pre .. "_ofs_z", p, 0.0));
+		psp.AnchorAngles = (cvNum(pre .. "_yaw",   p, 0.0),
+		                    cvNum(pre .. "_pitch", p, 0.0),
+		                    cvNum(pre .. "_roll",  p, 0.0));
+
 		mLayerUp[hand] = true;
 	}
 

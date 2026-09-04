@@ -30,3 +30,28 @@ user bool  rs_handhud_mugshot = true;
 // Once a second on the console: both wrist rolls, the gate verdicts, whether
 // each layer is up, and the numbers being painted.
 user bool  rs_handhud_debug = false;
+
+// ---------------------------------------------------------------- placing --
+// WHERE ON THE WRIST, per hand, live. These reach the plate through the
+// psprite's AnchorOfs/AnchorAngles, which the engine only honours for a layer
+// anchored to another -- the handler anchors each plate to that hand's palm
+// bone so these work at all.
+//
+// Offsets are in MAP UNITS in the hand's own frame; 34 units is a metre, so
+// most of the useful range is single digits. Angles are degrees.
+//
+// Turn rs_handhud_always on while setting these, or the plate keeps fading
+// out while you are trying to look at it.
+user float rs_handhud_m_ofs_x = 0.0;
+user float rs_handhud_m_ofs_y = 0.0;
+user float rs_handhud_m_ofs_z = 0.0;
+user float rs_handhud_m_yaw   = 0.0;
+user float rs_handhud_m_pitch = 0.0;
+user float rs_handhud_m_roll  = 0.0;
+
+user float rs_handhud_o_ofs_x = 0.0;
+user float rs_handhud_o_ofs_y = 0.0;
+user float rs_handhud_o_ofs_z = 0.0;
+user float rs_handhud_o_yaw   = 0.0;
+user float rs_handhud_o_pitch = 0.0;
+user float rs_handhud_o_roll  = 0.0;
