@@ -15,7 +15,7 @@ OptionMenu "RS_HandHUDOptions"
 	StaticText "Roll a wrist toward your face to read it.", "DarkGray"
 	StaticText ""
 	Option "Hand HUD",                 "rs_handhud",         "OnOff"
-	Slider "Plate size",               "rs_handhud_scale",   0.5, 20.0, 0.5, 1
+	Slider "Plate size",               "rs_handhud_scale",   1.0, 200.0, 1.0, 0
 	Submenu "Place the main-hand plate", "RS_HandHUDPlaceMain"
 	Submenu "Place the off-hand plate",  "RS_HandHUDPlaceOff"
 	Option "Swap hands (left-handed)", "rs_handhud_swap",    "OnOff"

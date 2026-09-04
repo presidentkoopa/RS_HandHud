@@ -4,7 +4,9 @@
 user bool  rs_handhud = true;
 
 // Plate size, on top of the MODELDEF Scale.
-user float rs_handhud_scale = 1.0;
+// TUNED IN THE HEADSET 2026-09-04. These are where the plates actually sit
+// and how big they actually read; they are not a starting guess.
+user float rs_handhud_scale = 100.0;
 
 // Weapon plate on the main wrist and vitals on the off forearm by default;
 // on, the two swap (left-handers).
@@ -43,15 +45,15 @@ user bool  rs_handhud_debug = false;
 // Turn rs_handhud_always on while setting these, or the plate keeps fading
 // out while you are trying to look at it.
 user float rs_handhud_m_ofs_x = 0.0;
-user float rs_handhud_m_ofs_y = 0.0;
-user float rs_handhud_m_ofs_z = 0.0;
+user float rs_handhud_m_ofs_y = 23.0;
+user float rs_handhud_m_ofs_z = 14.0;
 user float rs_handhud_m_yaw   = 0.0;
 user float rs_handhud_m_pitch = 0.0;
 user float rs_handhud_m_roll  = 0.0;
 
 user float rs_handhud_o_ofs_x = 0.0;
-user float rs_handhud_o_ofs_y = 0.0;
-user float rs_handhud_o_ofs_z = 0.0;
+user float rs_handhud_o_ofs_y = 23.0;
+user float rs_handhud_o_ofs_z = 14.0;
 user float rs_handhud_o_yaw   = 0.0;
 user float rs_handhud_o_pitch = 0.0;
 user float rs_handhud_o_roll  = 0.0;
