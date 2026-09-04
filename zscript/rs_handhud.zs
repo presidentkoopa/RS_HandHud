@@ -260,8 +260,31 @@ class RS_HandHUD : EventHandler
 			}
 			else
 			{
-				// A weapon that keeps its own magazine (Ammo2, or a mod field
-				// wr_Stats knows about). Otherwise the pool is the whole story.
+				// A weapon that keeps its own magazine. THREE PLACES TO LOOK,
+				// in order of how much they know:
+				//
+				//   1. a NAMED FIELD on the weapon, read by reflection. Most
+				//      mods with magazines keep the count in an int on the
+				//      weapon class; the engine can read one by name without
+				//      this package knowing the class exists. RS_HandHUDRead
+				//      below holds the list of names worth trying and caches
+				//      the one that answered.
+				//   2. wr_Stats, which knows the handful of mods the wheel
+				//      has real compat readers for.
+				//   3. Ammo2 as a magazine, then the flat pool.
+				int fLoaded, fCap;
+				[fLoaded, fCap] = RS_HandHUDRead.Magazine(w, p);
+				if (fLoaded >= 0)
+				{
+					mWepLoaded = fLoaded;
+					mWepCap    = (fCap > 0) ? fCap : fLoaded;
+					mWepPool   = pool;
+					mWepDry    = (fLoaded <= 0);
+					mSigWep = 4 + (mWepLoaded + 1) * 4 + mWepCap * 4096 + mWepPool * 1048576;
+					ResolveVitals(pmo);
+					return;
+				}
+
 				int src, loaded, cap;
 				[src, loaded, cap] = wr_Stats.Magazine(w);
 				if (src != wr_Stats.SRC_UNKNOWN && src != wr_Stats.SRC_MASKED && cap > 0)
@@ -285,6 +308,18 @@ class RS_HandHUD : EventHandler
 			mWepDry = (mWepLoaded >= 0) ? (mWepLoaded <= 0) : (pool == 0);
 		}
 
+		// Change signature. Cheap to compute, and it is what keeps the painter
+		// idle on the tics where nothing moved.
+		mSigWep = (mWepNone ? 1 : 0) + (mWepDry ? 2 : 0) + (mWepLoaded + 1) * 4
+		        + mWepCap * 4096 + mWepPool * 1048576;
+
+		ResolveVitals(pmo);
+	}
+
+	// The vitals half, split out so the weapon half can return early once it
+	// has an answer without leaving health and armour a tic stale.
+	private void ResolveVitals(PlayerPawn pmo)
+	{
 		mHealth = pmo.health;
 		let armor = BasicArmor(pmo.FindInventory('BasicArmor'));
 		mArmor = (armor && armor.Amount > 0) ? armor.Amount : 0;
@@ -297,10 +332,21 @@ class RS_HandHUD : EventHandler
 			if (k && k.Icon.IsValid()) mKeyIcons.Push(k.Icon);
 		}
 
-		// Change signatures. Cheap to compute, and they are what keeps the
-		// painter idle on the tics where nothing moved.
-		mSigWep = (mWepNone ? 1 : 0) + (mWepDry ? 2 : 0) + (mWepLoaded + 1) * 4 + mWepCap * 4096 + mWepPool * 1048576;
 		mSigVit = mHealth + mArmor * 1024 + mKeyIcons.Size() * 1048576 + (mArmorIcon.IsValid() ? mArmorIcon.GetIndex() * 8 : 0);
+	}
+
+	// `netevent rs-handhud-probe` -- dump both hands' weapons, every field on
+	// them and their value. Typed straight into the console; it needs no bind
+	// and no KEYCONF entry.
+	override void NetworkProcess(ConsoleEvent e)
+	{
+		if (e.Player != consoleplayer) return;
+		if (!(e.Name ~== "rs-handhud-probe")) return;
+
+		let p = players[consoleplayer];
+		if (!p || !p.mo) return;
+		RS_HandHUDRead.Probe(p.ReadyWeapon,   "main hand");
+		RS_HandHUDRead.Probe(p.OffhandWeapon, "off hand");
 	}
 
 	// ======================================================================
@@ -326,6 +372,11 @@ class RS_HandHUD : EventHandler
 		{
 			PaintWeapon(CanvasFor(wh));
 			mPaintedWep = mSigWep;
+			if (cvOn("rs_handhud_debug", p, false))
+				Console.Printf("[HandHUD] painted %s: canvas=%d bigfont=%d smallfont=%d",
+					CanvasFor(wh),
+					TexMan.GetCanvas(CanvasFor(wh)) ? 1 : 0,
+					bigFont() ? 1 : 0, smallFont() ? 1 : 0);
 		}
 		if (mPaintedVit != mSigVit || mPaintedMug != mugSig)
 		{
@@ -433,6 +484,136 @@ class RS_HandHUD : EventHandler
 		{
 			c.DrawTexture(mKeyIcons[i], false, kx, 100, DTA_ScaleX, 1.6, DTA_ScaleY, 1.6);
 			kx += 24;
+		}
+	}
+}
+
+
+// =====================================================================
+// RS_HandHUDRead -- READING SOMEBODY ELSE'S MAGAZINE.
+//
+// A mod that keeps a magazine keeps it in an int on its weapon class, and
+// this package has no idea that class exists. The fork's reflection natives
+// close that gap: level.GetFieldInt(obj, "name", out value) reads a field by
+// NAME, so a list of the names mods actually use covers most of them without
+// a compat reader per mod.
+//
+// The list is ordered by how unambiguous the name is. "mag" and "clip" are
+// last because plenty of things are called that without being a count.
+//
+// CACHED PER CLASS, because the answer never changes for a class and the
+// probe is a string compare per candidate. A class that answers nothing is
+// cached too -- the miss is the expensive case and it is the common one.
+//
+// rs_handhud_magfield overrides the whole list with one name, which is how a
+// mod the list does not cover gets read without a code change: run
+// `netevent rs-handhud-probe`, read the field names off the console, put one
+// in the cvar.
+class RS_HandHUDRead
+{
+	// A LOOKUP FUNCTION, NOT AN ARRAY. ZScript's `static const X[]` takes
+	// numeric types only, and a class may not hold a static member variable
+	// at all -- so a list of names has to be a switch. Ordered by how
+	// unambiguous the name is: "mag" and "clip" are last because plenty of
+	// things are called that without being a count.
+	const MAG_COUNT = 24;
+	private static String MagName(int i)
+	{
+		switch (i)
+		{
+		case  0: return "MagazineAmount";  case  1: return "magazineAmount";
+		case  2: return "MagAmount";       case  3: return "magAmount";
+		case  4: return "AmmoInClip";      case  5: return "ammoInClip";
+		case  6: return "RoundsLoaded";    case  7: return "roundsLoaded";
+		case  8: return "CurrentMag";      case  9: return "currentMag";
+		case 10: return "MagCount";        case 11: return "magCount";
+		case 12: return "ClipAmount";      case 13: return "clipAmount";
+		case 14: return "ClipCount";       case 15: return "clipCounter";
+		case 16: return "Loaded";          case 17: return "loaded";
+		case 18: return "Magazine";        case 19: return "magazine";
+		case 20: return "Clip";            case 21: return "clip";
+		case 22: return "Mag";             case 23: return "mag";
+		}
+		return "";
+	}
+
+	const CAP_COUNT = 18;
+	private static String CapName(int i)
+	{
+		switch (i)
+		{
+		case  0: return "MagazineCapacity"; case  1: return "magazineCapacity";
+		case  2: return "MagCapacity";      case  3: return "magCapacity";
+		case  4: return "MagazineSize";     case  5: return "magazineSize";
+		case  6: return "MagSize";          case  7: return "magSize";
+		case  8: return "ClipCapacity";     case  9: return "clipCapacity";
+		case 10: return "ClipSize";         case 11: return "clipSize";
+		case 12: return "MaxMagazine";      case 13: return "maxMagazine";
+		case 14: return "MaxMag";           case 15: return "maxMag";
+		case 16: return "Capacity";         case 17: return "capacity";
+		}
+		return "";
+	}
+
+	// loaded, capacity. loaded < 0 means "nothing here knows".
+	static int, int Magazine(Weapon w, PlayerInfo p)
+	{
+		if (!w || !level) return -1, 0;
+
+		// The manual override wins outright, and answers with only a count --
+		// a capacity of 0 makes the plate show the number on its own.
+		let cv = CVar.GetCVar("rs_handhud_magfield", p);
+		String forced = cv ? cv.GetString() : "";
+		if (forced.Length() > 0)
+		{
+			int v;
+			if (level.GetFieldInt(w, forced, v)) return v, CapFor(w);
+			return -1, 0;
+		}
+
+		for (int i = 0; i < MAG_COUNT; i++)
+		{
+			int v;
+			if (level.GetFieldInt(w, MagName(i), v) && v >= 0)
+				return v, CapFor(w);
+		}
+		return -1, 0;
+	}
+
+	private static int CapFor(Weapon w)
+	{
+		for (int i = 0; i < CAP_COUNT; i++)
+		{
+			int v;
+			if (level.GetFieldInt(w, CapName(i), v) && v > 0)
+				return v;
+		}
+		return 0;
+	}
+
+	// EVERY FIELD ON THE WEAPON, printed. The answer to "what does this mod
+	// call its magazine" for a mod nobody has read the source of.
+	static void Probe(Weapon w, String label)
+	{
+		if (!w) { Console.Printf("\cg[HandHUD probe] %s: no weapon", label); return; }
+		Console.Printf("\cf[HandHUD probe] %s = %s", label, w.GetClassName());
+
+		if (w.Ammo1)
+			Console.Printf("   Ammo1  %-20s %d / %d", w.Ammo1.GetClassName(), w.Ammo1.Amount, w.Ammo1.MaxAmount);
+		if (w.Ammo2)
+			Console.Printf("   Ammo2  %-20s %d / %d", w.Ammo2.GetClassName(), w.Ammo2.Amount, w.Ammo2.MaxAmount);
+
+		int n = level.FieldCount(w);
+		Console.Printf("   %d fields:", n);
+		for (int i = 0; i < n; i++)
+		{
+			String fname, ftype;
+			if (!level.FieldAt(w, i, fname, ftype)) continue;
+			int v;
+			if (level.GetFieldInt(w, fname, v))
+				Console.Printf("      %-28s %-10s = %d", fname, ftype, v);
+			else
+				Console.Printf("      %-28s %-10s", fname, ftype);
 		}
 	}
 }

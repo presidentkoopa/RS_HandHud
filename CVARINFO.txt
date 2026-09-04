@@ -55,3 +55,12 @@ user float rs_handhud_o_ofs_z = 0.0;
 user float rs_handhud_o_yaw   = 0.0;
 user float rs_handhud_o_pitch = 0.0;
 user float rs_handhud_o_roll  = 0.0;
+
+// READ A MOD'S MAGAZINE BY FIELD NAME. Empty means "try the built-in list of
+// names mods actually use". Set it to one field name and that name is used
+// instead, for every weapon -- which is how a mod the list does not cover
+// gets read without a code change.
+//
+// Run `netevent rs-handhud-probe` to print every field on the weapons in
+// your hands, then put the one that holds the count in here.
+user string rs_handhud_magfield = "";
