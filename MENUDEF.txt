@@ -1,3 +1,9 @@
+OptionValue "RS_HandHUDShape"
+{
+	0, "Flat panel"
+	1, "Bracer (folded)"
+}
+
 // RS_HandHud -- readouts on the wrists. One page, listed under
 // RS_VR_Unified's "Unified VR HUD and Interaction Options" hub rather than
 // in the main Options menu. AddOptionMenu appends to a menu defined in an
@@ -19,6 +25,7 @@ OptionMenu "RS_HandHUDOptions"
 	Submenu "Place the main-hand plate", "RS_HandHUDPlaceMain"
 	Submenu "Place the off-hand plate",  "RS_HandHUDPlaceOff"
 	Option "Swap hands (left-handed)", "rs_handhud_swap",    "OnOff"
+	Option "Plate shape",              "rs_handhud_shape",   "RS_HandHUDShape"
 	Option "Show the mugshot",         "rs_handhud_mugshot", "OnOff"
 	StaticText ""
 	StaticText "Wrist gate", "Gold"

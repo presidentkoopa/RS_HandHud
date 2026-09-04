@@ -12,6 +12,9 @@
 Model RS_HandHUDPlateMain
 {
 	Path "models"
+	// The mesh named here is only the STARTING one: rs_handhud_shape picks
+	// between rs_plate.obj and rs_bracer.obj at runtime through
+	// A_ChangeModel. Both share this footprint and UV layout.
 	Model 0 "rs_plate.obj"
 	Skin 0 "RSHUDMAIN"
 	Scale 2.0 1.0 1.0

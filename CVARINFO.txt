@@ -66,3 +66,12 @@ user float rs_handhud_o_roll  = 0.0;
 // Run `netevent rs-handhud-probe` to print every field on the weapons in
 // your hands, then put the one that holds the count in here.
 user string rs_handhud_magfield = "";
+
+// THE PLATE'S SHAPE. 0 is the flat slab it started as; 1 folds it into a
+// triptych -- the middle panel square to you, the two flanking it hinged back
+// 40 degrees to follow the wrist down its sides, so the edges neither float
+// off the arm nor bury themselves in it.
+//
+// Both meshes share a footprint and a UV layout, so switching costs nothing:
+// the placement stays where it was tuned and the canvas paints the same.
+user int rs_handhud_shape = 1;
