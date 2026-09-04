@@ -555,6 +555,18 @@ class RS_HandHUDRead
 		return "";
 	}
 
+	// THREE SHAPES, AND A MOD PICKS ONE.
+	//
+	//   a FIELD on the weapon        modern ZScript. Read by name.
+	//   Ammo2                        the classic ZDoom idiom, handled by the
+	//                                caller before this is reached.
+	//   an INVENTORY ITEM            DECORATE-era mods -- Project Brutality's
+	//                                PumpshotgunMagazine and everything shaped
+	//                                like it. No field exists to read.
+	//
+	// The third is the one that needs work, because nothing links the item to
+	// the gun except the two names agreeing. See ItemMagazine.
+	//
 	// loaded, capacity. loaded < 0 means "nothing here knows".
 	static int, int Magazine(Weapon w, PlayerInfo p)
 	{
@@ -577,7 +589,111 @@ class RS_HandHUDRead
 			if (level.GetFieldInt(w, MagName(i), v) && v >= 0)
 				return v, CapFor(w);
 		}
+
+		// No field: try the inventory shape.
+		let pmo = (w.Owner != null) ? PlayerPawn(w.Owner) : null;
+		if (pmo)
+		{
+			int il, ic;
+			[il, ic] = ItemMagazine(w, pmo);
+			if (il >= 0) return il, ic;
+		}
 		return -1, 0;
+	}
+
+	// A MAGAZINE KEPT AS AN INVENTORY ITEM.
+	//
+	// Project Brutality counts the pump shotgun's shells in an item called
+	// PumpshotgunMagazine sitting on the player; there is no field anywhere to
+	// read and no compat reader could keep up with a mod that adds guns. What
+	// IS reliable is that the two names agree -- the item is named after the
+	// gun -- so the item can be found by matching them.
+	//
+	// THREE TESTS, and all three are needed:
+	//
+	//   1. the item's name ends in a magazine word.
+	//   2. what is left when that word is removed appears in the weapon's own
+	//      class name. PumpshotgunMagazine -> "pumpshotgun", which sits inside
+	//      "pbpumpshotgun".
+	//   3. IT CAN HOLD MORE THAN ONE. This is what separates a magazine from
+	//      the flags these mods are full of -- PBPumpShotgunHasUnloaded,
+	//      RevolverHasUnloaded, FlamerUnloaded are all MaxAmount 1, and every
+	//      one of them ends in "loaded".
+	//
+	// MaxAmount doubles as the capacity, which is the number the mod already
+	// had to declare for the item to work at all.
+	static int, int ItemMagazine(Weapon w, PlayerPawn pmo)
+	{
+		if (!w || !pmo) return -1, 0;
+		String wn = w.GetClassName();
+		wn = Squash(wn);
+		if (wn.Length() < 3) return -1, 0;
+
+		Inventory best = null;
+		int bestStem = 0;
+
+		for (Inventory it = pmo.Inv; it != null; it = it.Inv)
+		{
+			if (it.MaxAmount <= 1) continue;          // a flag, not a magazine
+			if (Ammo(it)) continue;                   // the pool, not a magazine
+
+			String stem = MagStem(Squash(it.GetClassName()));
+			if (stem.Length() < 3) continue;
+			if (wn.IndexOf(stem) < 0) continue;
+
+			// Longest stem wins: "pumpshotgun" beats "shotgun" for a weapon
+			// whose name contains both.
+			if (stem.Length() > bestStem)
+			{
+				bestStem = stem.Length();
+				best = it;
+			}
+		}
+
+		if (!best) return -1, 0;
+		return best.Amount, best.MaxAmount;
+	}
+
+	// Lowercased with the separators taken out, so PB_SGMagazine and
+	// PBSGMagazine compare the same way.
+	private static String Squash(String s)
+	{
+		s = s.MakeLower();
+		s.Replace("_", "");
+		s.Replace("-", "");
+		s.Replace(" ", "");
+		return s;
+	}
+
+	// The name with its magazine word removed, or "" if it had none. Longest
+	// words first: "magazine" before "mag", or every magazine keeps an "azine".
+	private static String MagStem(String n)
+	{
+		int c = MagWordCount();
+		for (int i = 0; i < c; i++)
+		{
+			String word = MagWord(i);
+			int at = n.IndexOf(word);
+			if (at < 0) continue;
+			if (at + word.Length() != n.Length()) continue;   // must END with it
+			return n.Left(at);
+		}
+		return "";
+	}
+
+	private static int MagWordCount() { return 6; }
+	private static String MagWord(int i)
+	{
+		switch (i)
+		{
+		case 0: return "magazine";
+		case 1: return "rounds";
+		case 2: return "shells";
+		case 3: return "loaded";
+		case 4: return "clip";
+		case 5: return "mag";
+		}
+		return "";
 	}
 
 	private static int CapFor(Weapon w)
@@ -602,6 +718,25 @@ class RS_HandHUDRead
 			Console.Printf("   Ammo1  %-20s %d / %d", w.Ammo1.GetClassName(), w.Ammo1.Amount, w.Ammo1.MaxAmount);
 		if (w.Ammo2)
 			Console.Printf("   Ammo2  %-20s %d / %d", w.Ammo2.GetClassName(), w.Ammo2.Amount, w.Ammo2.MaxAmount);
+
+		// The inventory shape, listed with the two things that decide it: an
+		// item that can hold more than one, and whether its name matches this
+		// weapon's. A mod using this shape shows its magazine here even when
+		// the weapon itself has no field worth reading.
+		let pmo = (w.Owner != null) ? PlayerPawn(w.Owner) : null;
+		if (pmo)
+		{
+			int il, ic;
+			[il, ic] = ItemMagazine(w, pmo);
+			if (il >= 0) Console.Printf("\cd   matched inventory magazine: %d / %d", il, ic);
+
+			Console.Printf("   inventory items that could be a magazine:");
+			for (Inventory it = pmo.Inv; it != null; it = it.Inv)
+			{
+				if (it.MaxAmount <= 1 || Ammo(it)) continue;
+				Console.Printf("      %-28s %d / %d", it.GetClassName(), it.Amount, it.MaxAmount);
+			}
+		}
 
 		int n = level.FieldCount(w);
 		Console.Printf("   %d fields:", n);
