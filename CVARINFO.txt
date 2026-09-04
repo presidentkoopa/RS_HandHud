@@ -1,77 +1,113 @@
-// ============================================================================
-// RS_HandHUD -- the HUD on your hands (zscript/handhud/rs_handhud.zs).
-// ============================================================================
-user bool  rs_handhud = true;
-
-// Plate size, on top of the MODELDEF Scale.
-// TUNED IN THE HEADSET 2026-09-04. These are where the plates actually sit
-// and how big they actually read; they are not a starting guess.
-user float rs_handhud_scale = 100.0;
-
-// Weapon plate on the main wrist and vitals on the off forearm by default;
-// on, the two swap (left-handers).
-user bool  rs_handhud_swap = false;
-
-// THE WRIST GATE. A plate fades in when that wrist is rolled to within
-// rs_handhud_roll_tol degrees of its target roll, and out otherwise -- the
-// way you check a watch. The engine's roll fields turn opposite to actor
-// roll, so tune the targets by feel rather than by reasoning about sign.
-user float rs_handhud_roll_main = 90.0;
-user float rs_handhud_roll_off  = -90.0;
-user float rs_handhud_roll_tol  = 45.0;
-
-// Fade length in tics.
-user float rs_handhud_fade = 6.0;
-
-// Ignore the gate: both plates always up. For placing them.
-user bool  rs_handhud_always = false;
-
-// The status bar face on the vitals plate.
-user bool  rs_handhud_mugshot = true;
-
-// Once a second on the console: both wrist rolls, the gate verdicts, whether
-// each layer is up, and the numbers being painted.
-user bool  rs_handhud_debug = false;
-
-// ---------------------------------------------------------------- placing --
-// WHERE ON THE WRIST, per hand, live. These reach the plate through the
-// psprite's AnchorOfs/AnchorAngles, which the engine only honours for a layer
-// anchored to another -- the handler anchors each plate to that hand's palm
-// bone so these work at all.
+// RS_HandHUD -- readouts stuck to things that move.
 //
-// Offsets are in MAP UNITS in the hand's own frame; 34 units is a metre, so
-// most of the useful range is single digits. Angles are degrees.
+// FOUR MOUNTS, FOUR PREFIXES, ONE SHAPE EACH:
 //
-// Turn rs_handhud_always on while setting these, or the plate keeps fading
-// out while you are trying to look at it.
+//     rs_handhud_m    main wrist      rs_handhud_gm   main gun
+//     rs_handhud_o    off wrist       rs_handhud_go   off gun
+//
+// Every prefix carries the same set. The placement half of it --
+// _ofs_x/_ofs_y/_ofs_z, _yaw/_pitch/_roll, _scale, _scale_x/y/z -- is NOT
+// read by ZScript at all: MODELDEF names the prefix on a PlacementCVars line
+// and the RENDERER reads them, every frame, for that model. Adding a fifth
+// mount means adding a fifth prefix here and a fifth MODELDEF block, and
+// nothing else.
+
+// ============================================================== the master --
+user bool rs_handhud = true;
+
+// Ignore the wrist gate and hold both wrist plates up. For placing them --
+// without it they keep fading out while you are looking at them. Gun plates
+// are never gated, so this does not affect them.
+user bool rs_handhud_always = false;
+
+// The status bar's own animated face on whichever plate shows vitals.
+user bool rs_handhud_mugshot = true;
+
+// Swap which hand's weapon the WRIST plates describe, for a left-hander. The
+// two gun plates always describe the gun they are bolted to.
+user bool rs_handhud_swap = false;
+
+// How far off its target roll a wrist may be and still count as turned
+// toward you. Degrees, shared by both wrists.
+user float rs_handhud_roll_tol = 45.0;
+
+// ============================================================== diagnostic --
+// Once a second: both wrist rolls, which plates are up, and every number
+// being painted.
+user bool rs_handhud_debug = false;
+
+// PAINT A KNOWN PATTERN INSTEAD OF THE READOUT -- three coloured bars and a
+// digit per panel. If the plate shows this and not the readout, the fault is
+// in what the readout was given, not in the canvas, the skin, the model, the
+// layer or the placement. That distinction cost a day to make by hand.
+user bool rs_handhud_selftest = false;
+
+// READ A MOD'S MAGAZINE BY FIELD NAME. Empty means "try the built-in list of
+// names mods actually use, then Ammo2, then a matching inventory item". Set
+// it to one field name and that name is used instead, for every weapon --
+// which is how a mod none of those three shapes covers gets read without a
+// code change.
+//
+// Run `netevent rs-handhud-probe` to print every field on the weapons in your
+// hands, every inventory item that could be a magazine, and which one matched.
+user string rs_handhud_magfield = "";
+
+// ================================================== main wrist -- behaviour --
+user bool  rs_handhud_m_on   = true;
+// 0 ammo, 1 vitals, 2 both.
+user int   rs_handhud_m_role = 0;
+// The wrist roll at which this plate is turned toward you.
+user float rs_handhud_m_roll_gate = 90.0;
+
+// --------------------------------------- main wrist -- placement (renderer) --
+// TUNED IN A HEADSET 2026-09-04. Not a starting guess.
 user float rs_handhud_m_ofs_x = 0.0;
 user float rs_handhud_m_ofs_y = 23.0;
 user float rs_handhud_m_ofs_z = 14.0;
 user float rs_handhud_m_yaw   = 0.0;
 user float rs_handhud_m_pitch = 0.0;
 user float rs_handhud_m_roll  = 0.0;
+user float rs_handhud_m_scale = 100.0;
 
+// =================================================== off wrist -- behaviour --
+user bool  rs_handhud_o_on   = true;
+user int   rs_handhud_o_role = 1;
+user float rs_handhud_o_roll_gate = -90.0;
+
+// ---------------------------------------- off wrist -- placement (renderer) --
 user float rs_handhud_o_ofs_x = 0.0;
 user float rs_handhud_o_ofs_y = 23.0;
 user float rs_handhud_o_ofs_z = 14.0;
 user float rs_handhud_o_yaw   = 0.0;
 user float rs_handhud_o_pitch = 0.0;
 user float rs_handhud_o_roll  = 0.0;
+user float rs_handhud_o_scale = 100.0;
 
-// READ A MOD'S MAGAZINE BY FIELD NAME. Empty means "try the built-in list of
-// names mods actually use". Set it to one field name and that name is used
-// instead, for every weapon -- which is how a mod the list does not cover
-// gets read without a code change.
-//
-// Run `netevent rs-handhud-probe` to print every field on the weapons in
-// your hands, then put the one that holds the count in here.
-user string rs_handhud_magfield = "";
+// ==================================================== main gun -- behaviour --
+// OFF by default: an on-gun readout has to be placed for the weapon set in
+// front of you, and one that arrives already floating beside a gun reads as a
+// bug rather than a feature. Turn it on, turn rs_handhud_always on, place it.
+user bool  rs_handhud_gm_on   = false;
+user int   rs_handhud_gm_role = 0;
 
-// THE PLATE'S SHAPE. 0 is the flat slab it started as; 1 folds it into a
-// triptych -- the middle panel square to you, the two flanking it hinged back
-// 40 degrees to follow the wrist down its sides, so the edges neither float
-// off the arm nor bury themselves in it.
-//
-// Both meshes share a footprint and a UV layout, so switching costs nothing:
-// the placement stays where it was tuned and the canvas paints the same.
-user int rs_handhud_shape = 1;
+// ----------------------------------------- main gun -- placement (renderer) --
+user float rs_handhud_gm_ofs_x = 0.0;
+user float rs_handhud_gm_ofs_y = 0.0;
+user float rs_handhud_gm_ofs_z = 0.0;
+user float rs_handhud_gm_yaw   = 0.0;
+user float rs_handhud_gm_pitch = 0.0;
+user float rs_handhud_gm_roll  = 0.0;
+user float rs_handhud_gm_scale = 60.0;
+
+// ===================================================== off gun -- behaviour --
+user bool  rs_handhud_go_on   = false;
+user int   rs_handhud_go_role = 0;
+
+// ------------------------------------------ off gun -- placement (renderer) --
+user float rs_handhud_go_ofs_x = 0.0;
+user float rs_handhud_go_ofs_y = 0.0;
+user float rs_handhud_go_ofs_z = 0.0;
+user float rs_handhud_go_yaw   = 0.0;
+user float rs_handhud_go_pitch = 0.0;
+user float rs_handhud_go_roll  = 0.0;
+user float rs_handhud_go_scale = 60.0;

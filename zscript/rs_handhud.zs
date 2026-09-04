@@ -1,36 +1,67 @@
-// RS_HandHUD -- THE HUD ON YOUR HANDS.
+// RS_HandHUD -- READOUTS STUCK TO THINGS THAT MOVE.
 //
-// Two plates, one strapped to each hand, drawn the way the hands themselves
-// are drawn: a model on a psprite layer that rides the controller at render
-// rate (rs_hands.zs LAYER_MAIN/OFF, RR_Ammo's in-hand magazine). No world
-// billboard, no per-tic placement, no per-weapon calibration -- the hand is
-// the one thing whose pose is exact, and a fixed offset in its frame lands on
-// the same spot of the wrist every frame.
+// Four of them, and they are the same object four times: a flat plate on its
+// own psprite layer, skinned with a canvas this file paints.
 //
-// Each plate is skinned with a CANVAS TEXTURE (ANIMDEFS RSHUDMAIN / RSHUDOFF)
-// painted from ZScript, the mechanism the wheel already uses for its card
-// faces. The content is the stock HUD: the big red status-bar digits, the
-// small yellow ones, MEDIA0, the armor pickup icon, the key icons and the
-// mugshot. Nothing on either plate needs an asset this package does not
-// already get for free from the IWAD.
+//   main wrist / off wrist    what you are carrying, and how you are doing
+//   main gun / off gun        the same numbers, on the gun itself
 //
-// ROLES. The WEAPON plate follows whatever is in that hand -- loaded /
-// capacity in big digits, reserve under it. The VITALS plate carries the
-// mugshot, health, armor and keys. Weapon on the main wrist, vitals on the
-// off forearm by default; rs_handhud_swap flips them for a left-hander.
+// A WRIST READOUT AND AN ON-GUN READOUT ARE ONE PROBLEM, not two. Both are
+// "stick a readout to a thing that moves", and the only difference is which
+// layer the plate rides and what it says. Ermac's RLVR built them as two
+// separate systems welded into his weapon base class -- ten psprite layers for
+// the wristwatch, seven more for the gun -- and could only ever read his own
+// guns. RS_WeaponWheel's on-gun tag went the other way and placed a world
+// billboard at a hand-measured offset PER WEAPON, which is why it never
+// worked. This is one table with four rows.
 //
-// THE WRIST GATE is what makes this hudless rather than a HUD stuck to your
-// hand: a plate is faded out unless that wrist is rolled toward your face,
-// the way you check a watch. rs_handhud_always switches the gate off while
-// the plates are being placed.
+// ---------------------------------------------------------------------------
+// PLACEMENT IS THE ENGINE'S JOB, NOT THIS FILE'S.
 //
-// TWO SCOPES, ON PURPOSE. WorldTick (play) owns the layers, the gate and the
-// numbers; it cannot touch the status bar. UiTick (ui) owns the painting; it
-// can read the numbers play left behind and ask StatusBar for the mugshot.
-// The play side changes the world, the ui side only draws -- which is also
-// why the ui side never writes anything the play side reads.
+// MODELDEF's `PlacementCVars <prefix>` makes the renderer read
+// <prefix>_ofs_x/_ofs_y/_ofs_z, _yaw/_pitch/_roll, _scale and _scale_x/y/z
+// for that model every frame (r_data/models.cpp). Every slider is read by the
+// engine directly and nothing here touches position at all. RS_Grenade's held
+// prop already works this way.
+//
+// The alternative was psprite bone ANCHORING (AnchorLayer/AnchorBone), which
+// this file used at first. It works, but it needs a NAMED BONE on the target
+// model -- the engine tests `AnchorLayer >= 0 && AnchorBone != NAME_None` --
+// and only IQM carries bones. Almost every weapon model in a Doom mod is MD3,
+// which has none, so the gun mounts could never have worked that way.
+// PlacementCVars needs nothing from the model it rides.
+//
+// ---------------------------------------------------------------------------
+// THE FOUR RULES OF DRAWING ON A CANVAS, learned the hard way in one day and
+// encoded in RS_HandHUDCanvas so no caller can get them wrong again:
+//
+//   1. NO DRAW TAGS ON TEXT. Canvas.DrawText takes the same vararg tag list
+//      as DrawTexture but rejects most of them, and an invalid tag is a VM
+//      ABORT, not a warning. DTA_ScaleX killed the paint mid-way: the bed had
+//      been drawn and nothing after it ever was, which reads in a headset as
+//      a black plate with a rim and nothing else. Size comes from the font
+//      and the canvas, never from a tag.
+//   2. A CANVAS SAMPLES BOTTOM-UP. Author top-down and convert once, at the
+//      boundary. The wheel's card faces document the same thing.
+//   3. THE SKIN STAYS IN MODELDEF. A_ChangeModel rebinds the model on the
+//      actor instance, and these plates do not resolve their model that way
+//      -- they go through BaseSpriteModelFrames, which is why the class needs
+//      +DECOUPLEDANIMATIONS and MODELDEF uses BaseFrame. Rebinding took that
+//      lookup out from under them and the plates vanished entirely.
+//   4. NOTHING OUTSIDE RS_HandHUDCanvas TOUCHES A Canvas. One class, a small
+//      API, all four rules inside it.
+//
+// ---------------------------------------------------------------------------
+// SCOPES. WorldTick (play) owns the layers, the gate and the numbers; it
+// cannot reach the status bar. UiTick (ui) owns the painting and can. The play
+// side changes the world, the ui side only draws -- which is why the ui side
+// never writes anything the play side reads.
 
-class RS_HandHUDPlateMain : Inventory
+// =====================================================================
+// The plate actors. One class per mount because MODELDEF binds per class,
+// and that is the only reason they differ.
+// =====================================================================
+class RS_HandHUDPlate : Inventory
 {
 	Default
 	{
@@ -39,13 +70,12 @@ class RS_HandHUDPlateMain : Inventory
 		+INVENTORY.UNDROPPABLE
 		+INVENTORY.UNTOSSABLE
 		+INVENTORY.QUIET
-		// REQUIRED, and it is what was missing on the first build: with a TNT1
-		// Spawn state there is no FrameIndex for the model lookup to hit, so
-		// the psprite has to resolve its model through BaseSpriteModelFrames
-		// (MODELDEF BaseFrame) -- and that path is only consulted for a
-		// +DECOUPLEDANIMATIONS actor. Without the flag the layer fell through
-		// to the sprite path and drew nothing. Same flag on RS_HandIdle and
-		// RR_AmmoInHand, for the same reason.
+		// REQUIRED. With a TNT1 Spawn state there is no FrameIndex for the
+		// model lookup to hit, so the psprite resolves its model through
+		// BaseSpriteModelFrames (MODELDEF BaseFrame) -- and that path is only
+		// consulted for a +DECOUPLEDANIMATIONS actor. Without the flag the
+		// layer falls through to the sprite path and draws nothing at all.
+		// RS_HandIdle and RR_AmmoInHand carry it for the same reason.
 		+DECOUPLEDANIMATIONS
 	}
 	States
@@ -55,56 +85,263 @@ class RS_HandHUDPlateMain : Inventory
 		Stop;
 	}
 }
-class RS_HandHUDPlateOff : RS_HandHUDPlateMain {}
+class RS_HandHUDPlateM  : RS_HandHUDPlate {}   // main wrist
+class RS_HandHUDPlateO  : RS_HandHUDPlate {}   // off wrist
+class RS_HandHUDPlateGM : RS_HandHUDPlate {}   // main gun
+class RS_HandHUDPlateGO : RS_HandHUDPlate {}   // off gun
 
+// =====================================================================
+// THE MOUNT TABLE. Everything that distinguishes one readout from another,
+// in one place. A fifth readout is a fifth row here plus a MODELDEF block.
+// =====================================================================
+class RS_HandHUDMount
+{
+	const COUNT = 4;
+
+	const M_WRIST_MAIN = 0;
+	const M_WRIST_OFF  = 1;
+	const M_GUN_MAIN   = 2;
+	const M_GUN_OFF    = 3;
+
+	// Beside the hands (900000) and the reload's in-hand magazine (900010).
+	// The 1900000 range is what puts a layer on the OFF controller.
+	clearscope static int LayerOf(int m)
+	{
+		switch (m)
+		{
+		case M_WRIST_MAIN: return  900020;
+		case M_WRIST_OFF:  return 1900020;
+		case M_GUN_MAIN:   return  900030;
+		case M_GUN_OFF:    return 1900030;
+		}
+		return 900020;
+	}
+
+	clearscope static int HandOf(int m)
+	{
+		return (m == M_WRIST_OFF || m == M_GUN_OFF) ? 1 : 0;
+	}
+
+	clearscope static bool IsGun(int m)
+	{
+		return m == M_GUN_MAIN || m == M_GUN_OFF;
+	}
+
+	clearscope static Name ClassOf(int m)
+	{
+		switch (m)
+		{
+		case M_WRIST_MAIN: return 'RS_HandHUDPlateM';
+		case M_WRIST_OFF:  return 'RS_HandHUDPlateO';
+		case M_GUN_MAIN:   return 'RS_HandHUDPlateGM';
+		case M_GUN_OFF:    return 'RS_HandHUDPlateGO';
+		}
+		return 'RS_HandHUDPlateM';
+	}
+
+	// Must match the canvastexture lines in ANIMDEFS and the Skin lines in
+	// MODELDEF.
+	clearscope static String CanvasOf(int m)
+	{
+		switch (m)
+		{
+		case M_WRIST_MAIN: return "RSHUDMAIN";
+		case M_WRIST_OFF:  return "RSHUDOFF";
+		case M_GUN_MAIN:   return "RSHUDGUNM";
+		case M_GUN_OFF:    return "RSHUDGUNO";
+		}
+		return "RSHUDMAIN";
+	}
+
+	// The cvar prefix, SHARED WITH MODELDEF's PlacementCVars line -- so
+	// <prefix>_ofs_x and friends are read by the ENGINE, and <prefix>_on,
+	// <prefix>_role and <prefix>_roll by this file.
+	clearscope static String PrefixOf(int m)
+	{
+		switch (m)
+		{
+		case M_WRIST_MAIN: return "rs_handhud_m";
+		case M_WRIST_OFF:  return "rs_handhud_o";
+		case M_GUN_MAIN:   return "rs_handhud_gm";
+		case M_GUN_OFF:    return "rs_handhud_go";
+		}
+		return "rs_handhud_m";
+	}
+
+	clearscope static String NameOf(int m)
+	{
+		switch (m)
+		{
+		case M_WRIST_MAIN: return "main wrist";
+		case M_WRIST_OFF:  return "off wrist";
+		case M_GUN_MAIN:   return "main gun";
+		case M_GUN_OFF:    return "off gun";
+		}
+		return "?";
+	}
+}
+
+// What a plate says. A role is a question; the painter decides how to answer
+// it in the space available.
+class RS_HandHUDRole
+{
+	const AMMO   = 0;   // loaded / capacity, reserve
+	const VITALS = 1;   // mugshot, health, armour, keys
+	const BOTH   = 2;   // vitals across the plate, ammo in the right panel
+}
+
+// =====================================================================
+// THE ONLY CLASS ALLOWED TO TOUCH A CANVAS.
+//
+// Panel-aware: a plate is three columns wide whether or not the mesh is
+// folded, so the same content lands sensibly on the flat quad and on the
+// bracer. Panel 0 is left, 1 centre, 2 right; PANEL_ALL spans them.
+// =====================================================================
+class RS_HandHUDCanvas ui
+{
+	const W = 128;      // must match the canvastexture lines in ANIMDEFS
+	const H = 64;
+
+	const PANEL_ALL = -1;
+
+	private Canvas c;
+
+	// RULE 2, in one place: a canvas samples bottom-up, so everything is
+	// authored top-down and converted here and nowhere else.
+	private int fy(int yTop, int height) { return H - (yTop + height); }
+
+	private int panelX(int panel)
+	{
+		if (panel <= PANEL_ALL) return 0;
+		return (W / 3) * clamp(panel, 0, 2);
+	}
+	private int panelW(int panel)
+	{
+		if (panel <= PANEL_ALL) return W;
+		return W / 3;
+	}
+
+	// Open a canvas and lay the bed. False when the canvas texture is not
+	// declared, so the caller draws nothing rather than guessing.
+	bool Begin(String name)
+	{
+		c = TexMan.GetCanvas(name);
+		if (!c) return false;
+
+		// Translucent, the way the wheel declares its card faces. Without
+		// this the plate composites as an opaque slab.
+		TexMan.SetCanvasTextureTranslucent(name, true);
+		c.Clear(0, 0, W, H, Color(255, 10, 11, 13));
+		c.DrawLineFrame(Color(255, 90, 96, 104), 1, 1, W - 2, H - 2, 1);
+		return true;
+	}
+
+	// RULE 1: no tags, ever. Anything that wants bigger text picks a bigger
+	// font or a smaller canvas.
+	void Text(Font f, int col, int panel, int xIn, int yTop, String s)
+	{
+		if (!c || !f || s.Length() == 0) return;
+		c.DrawText(f, col, panelX(panel) + xIn, fy(yTop, f.GetHeight()), s);
+	}
+
+	void TextCentred(Font f, int col, int panel, int yTop, String s)
+	{
+		if (!c || !f || s.Length() == 0) return;
+		int x = panelX(panel) + (panelW(panel) - f.StringWidth(s)) / 2;
+		c.DrawText(f, col, x, fy(yTop, f.GetHeight()), s);
+	}
+
+	// Textures keep DTA_DestWidth/DestHeight, which the wheel already proves
+	// on this engine's canvases; it was only the text tags that aborted.
+	void Icon(TextureID t, int panel, int xIn, int yTop, int w, int h)
+	{
+		if (!c || !t.IsValid()) return;
+		c.DrawTexture(t, false, panelX(panel) + xIn, fy(yTop, h),
+			DTA_DestWidth, w, DTA_DestHeight, h, DTA_FlipY, true);
+	}
+
+	// frac 0..1. Two Clears rather than a texture, so it needs no art.
+	void Bar(int panel, int xIn, int yTop, int w, int h, double frac, Color fill)
+	{
+		if (!c) return;
+		int x = panelX(panel) + xIn;
+		int y = fy(yTop, h);
+		c.Clear(x, y, x + w, y + h, Color(255, 26, 28, 32));
+		int fw = int(w * clamp(frac, 0.0, 1.0));
+		if (fw > 0) c.Clear(x, y, x + fw, y + h, fill);
+	}
+
+	// A KNOWN PATTERN, for answering "is ANY of this reaching the plate".
+	// Three coloured bars and a digit per panel: if the plate shows this and
+	// not the readout, the fault is in what the readout was given -- not in
+	// the canvas, the skin, the model, the layer or the placement.
+	void SelfTest(Font f)
+	{
+		if (!c) return;
+		Bar(0, 4, 6, panelW(0) - 8, 12, 1.0, Color(255, 220,  60,  60));
+		Bar(1, 4, 6, panelW(1) - 8, 12, 1.0, Color(255,  60, 220,  60));
+		Bar(2, 4, 6, panelW(2) - 8, 12, 1.0, Color(255,  60, 120, 240));
+		TextCentred(f, Font.CR_UNTRANSLATED, 0, 26, "1");
+		TextCentred(f, Font.CR_UNTRANSLATED, 1, 26, "2");
+		TextCentred(f, Font.CR_UNTRANSLATED, 2, 26, "3");
+	}
+}
+
+// =====================================================================
+// THE HANDLER.
+// =====================================================================
 class RS_HandHUD : EventHandler
 {
-	// Beside the hand (900000) and the reload's magazine (900010).
-	const LAYER_MAIN = 900020;
-	const LAYER_OFF  = 1900020;
+	// ---- play state, read by the painter ---------------------------------
+	private bool mUp[4];            // the layer is currently installed
 
-	// Must match the canvastexture lines in ANIMDEFS.
-	const CANVAS_W = 128;
-	const CANVAS_H = 64;
-
-	// ---- play state, read by ui -------------------------------------------
-	private double mAlpha[2];       // current fade per hand
-	private bool   mLayerUp[2];     // the psprite is currently installed
-
-	// The numbers, resolved in play scope because the resolvers are play.
-	private int  mWepLoaded;        // -1: no magazine split, show the pool only
+	private int  mWepLoaded;        // -1: no magazine split, show the pool
 	private int  mWepCap;
-	private int  mWepPool;          // reserve (or the whole pool)
+	private int  mWepPool;
 	private bool mWepDry;
-	private bool mWepNone;          // no weapon in the weapon hand
+	private bool mWepNone;
+
 	private int  mHealth;
 	private int  mArmor;
 	private TextureID mArmorIcon;
 	private Array<TextureID> mKeyIcons;
-	private int  mSigWep;           // change signatures, so ui repaints only on change
-	private int  mSigVit;
+
+	private int mSigAmmo;
+	private int mSigVit;
 
 	// ---- ui state --------------------------------------------------------
-	private ui int mPaintedWep;
-	private ui int mPaintedVit;
-	private ui int mPaintedMug;
+	private ui int mPainted[4];
 
-	private clearscope static double cvNum(string name, PlayerInfo p, double fb)
+	// ---- cvar shorthand --------------------------------------------------
+	clearscope static double Num(String n, PlayerInfo p, double d)
 	{
-		let c = CVar.GetCVar(name, p);
-		return c ? c.GetFloat() : fb;
+		let c = CVar.GetCVar(n, p);
+		return c ? c.GetFloat() : d;
 	}
-	private clearscope static bool cvOn(string name, PlayerInfo p, bool fb)
+	clearscope static bool Flag(String n, PlayerInfo p, bool d)
 	{
-		let c = CVar.GetCVar(name, p);
-		return c ? c.GetBool() : fb;
+		let c = CVar.GetCVar(n, p);
+		return c ? c.GetBool() : d;
+	}
+	clearscope static int Opt(String n, PlayerInfo p, int d)
+	{
+		let c = CVar.GetCVar(n, p);
+		return c ? c.GetInt() : d;
 	}
 
-	// Which hand carries the weapon plate. The other carries vitals.
-	private clearscope static int weaponHand(PlayerInfo p) { return cvOn("rs_handhud_swap", p, false) ? 1 : 0; }
-	clearscope static int LayerFor(int hand) { return (hand == 0) ? LAYER_MAIN : LAYER_OFF; }
-	clearscope static Name ClassFor(int hand) { return (hand == 0) ? 'RS_HandHUDPlateMain' : 'RS_HandHUDPlateOff'; }
-	clearscope static String CanvasFor(int hand) { return (hand == 0) ? "RSHUDMAIN" : "RSHUDOFF"; }
+	clearscope static bool MountOn(int m, PlayerInfo p)
+	{
+		// The two wrists ship on, the two gun plates ship off: an on-gun
+		// readout wants placing per weapon set, and one that arrives already
+		// floating beside a gun reads as a bug rather than a feature.
+		return Flag(RS_HandHUDMount.PrefixOf(m) .. "_on", p, m < 2);
+	}
+	clearscope static int MountRole(int m, PlayerInfo p)
+	{
+		int def = (m == RS_HandHUDMount.M_WRIST_OFF)
+			? RS_HandHUDRole.VITALS : RS_HandHUDRole.AMMO;
+		return Opt(RS_HandHUDMount.PrefixOf(m) .. "_role", p, def);
+	}
 
 	// ======================================================================
 	// PLAY
@@ -115,62 +352,69 @@ class RS_HandHUD : EventHandler
 		if (!p) return;
 		let pmo = p.mo;
 
-		bool on = pmo && pmo.health > 0 && pmo.OverrideAttackPosDir && cvOn("rs_handhud", p, true);
+		bool on = pmo && pmo.health > 0 && pmo.OverrideAttackPosDir
+			&& Flag("rs_handhud", p, true);
 		if (!on)
 		{
-			Hide(p, 0);
-			Hide(p, 1);
+			for (int m = 0; m < RS_HandHUDMount.COUNT; m++) Hide(p, m);
 			return;
 		}
 
 		Resolve(p, pmo);
 
-		double fade = max(1.0, cvNum("rs_handhud_fade", p, 6.0));
-		double scale = cvNum("rs_handhud_scale", p, 1.0);
-		if (scale <= 0.0) scale = 1.0;
-
-		bool dbg = cvOn("rs_handhud_debug", p, false);
-		if (dbg && (level.time % 35) == 0)
+		for (int m = 0; m < RS_HandHUDMount.COUNT; m++)
 		{
-			// Once a second: the two rolls the gate reads, so the targets can
-			// be set from real numbers instead of guessed signs.
-			Console.Printf("[HandHUD] roll main %.0f off %.0f | gate main %d off %d | layers %d %d | wep %s %d/%d +%d | hp %d ar %d keys %d",
-				pmo.MainHandRoll, pmo.OffhandRoll, Gate(p, pmo, 0), Gate(p, pmo, 1), mLayerUp[0], mLayerUp[1],
-				mWepNone ? "none" : "ok", mWepLoaded, mWepCap, mWepPool, mHealth, mArmor, mKeyIcons.Size());
+			if (MountOn(m, p) && Visible(p, pmo, m)) Show(p, pmo, m);
+			else                                     Hide(p, m);
 		}
 
-		for (int h = 0; h < 2; h++)
-		{
-			double target = Gate(p, pmo, h) ? 1.0 : 0.0;
-			if (mAlpha[h] < target) mAlpha[h] = min(target, mAlpha[h] + 1.0 / fade);
-			else if (mAlpha[h] > target) mAlpha[h] = max(target, mAlpha[h] - 1.0 / fade);
-
-			if (mAlpha[h] <= 0.01) { Hide(p, h); continue; }
-			Show(p, pmo, h, scale, mAlpha[h]);
-		}
+		if (Flag("rs_handhud_debug", p, false) && (level.time % 35) == 0)
+			Console.Printf("[HandHUD] roll %.0f/%.0f  up %d%d%d%d  wep %d/%d +%d dry=%d none=%d  hp %d ar %d keys %d",
+				pmo.MainHandRoll, pmo.OffhandRoll,
+				mUp[0], mUp[1], mUp[2], mUp[3],
+				mWepLoaded, mWepCap, mWepPool, mWepDry, mWepNone,
+				mHealth, mArmor, mKeyIcons.Size());
 	}
 
-	// THE WRIST GATE. Roll the wrist toward your face and the plate comes up.
-	// The engine's roll fields turn opposite to actor roll (rs_held.zs), so
-	// the target angles are simply whatever reads right in the headset --
-	// tune rs_handhud_roll_main/off rather than reasoning about the sign.
-	private bool Gate(PlayerInfo p, PlayerPawn pmo, int hand)
+	// A WRIST PLATE IS GATED, A GUN PLATE IS NOT.
+	//
+	// The wrist gate is what makes this hudless rather than a HUD stuck to
+	// your arm: the plate is there only while that wrist is turned toward
+	// your face, the way you check a watch. A gun plate needs no gate -- it
+	// is on the gun, and you see it when you look at the gun.
+	private bool Visible(PlayerInfo p, PlayerPawn pmo, int m)
 	{
-		if (cvOn("rs_handhud_always", p, false)) return true;
+		if (RS_HandHUDMount.IsGun(m))
+		{
+			// Nothing to bolt a readout to if that hand is empty or holding
+			// a fist stand-in.
+			Weapon w = (RS_HandHUDMount.HandOf(m) == 0) ? p.ReadyWeapon : p.OffhandWeapon;
+			return w != null && !RS_HandFist.IsFistClass(w.GetClass());
+		}
+
+		if (Flag("rs_handhud_always", p, false)) return true;
+
+		int hand = RS_HandHUDMount.HandOf(m);
 		double roll   = (hand == 0) ? pmo.MainHandRoll : pmo.OffhandRoll;
-		double target = cvNum(hand == 0 ? "rs_handhud_roll_main" : "rs_handhud_roll_off", p, hand == 0 ? 90.0 : -90.0);
-		double tol    = cvNum("rs_handhud_roll_tol", p, 45.0);
+		// _roll_gate, NOT _roll: the renderer already owns <prefix>_roll as
+		// this model's roll ROTATION through PlacementCVars, and the two
+		// would fight over one name.
+		double target = Num(RS_HandHUDMount.PrefixOf(m) .. "_roll_gate", p, (hand == 0) ? 90.0 : -90.0);
+		double tol    = Num("rs_handhud_roll_tol", p, 45.0);
+
 		double d = roll - target;
 		while (d >  180.0) d -= 360.0;
 		while (d < -180.0) d += 360.0;
 		return abs(d) <= tol;
 	}
 
-	// Same plumbing as RR_Ammo.Show: an inert Inventory item is the layer's
-	// caller, MODELDEF puts the plate model on it, the canvas is its skin.
-	private void Show(PlayerInfo p, PlayerPawn pmo, int hand, double scale, double alpha)
+	// An inert Inventory item is the layer's caller; MODELDEF puts the plate
+	// model on it and names the canvas as its skin. Position, rotation and
+	// scale are the engine's, through MODELDEF's PlacementCVars -- nothing
+	// here touches them.
+	private void Show(PlayerInfo p, PlayerPawn pmo, int m)
 	{
-		Name cls = ClassFor(hand);
+		Name cls = RS_HandHUDMount.ClassOf(m);
 		let it = pmo.FindInventory(cls);
 		if (!it)
 		{
@@ -178,7 +422,8 @@ class RS_HandHUD : EventHandler
 			it = pmo.FindInventory(cls);
 			if (!it) return;
 		}
-		int layer = LayerFor(hand);
+
+		int layer = RS_HandHUDMount.LayerOf(m);
 		let psp = p.FindPSprite(layer);
 		if (!psp || psp.Caller != it)
 		{
@@ -188,56 +433,27 @@ class RS_HandHUD : EventHandler
 			psp = p.FindPSprite(layer);
 			if (!psp) return;
 		}
-		psp.scale = (scale, scale);
-		psp.alpha = alpha;
-
-
-		// ANCHORED TO THE HAND, which is what makes the placement sliders
-		// below do anything at all: AnchorOfs and AnchorAngles are only read
-		// for an ANCHORED layer (r_data/models.cpp -- `isAnchored ?
-		// psp->AnchorOfs.X : 0`), and an unanchored psprite has no runtime
-		// offset of any kind, only its baked MODELDEF numbers.
-		//
-		// Anchoring also puts the plate on the hand's palm BONE rather than
-		// the controller origin, so it stays where you put it when the hand's
-		// own placement sliders move.
-		//
-		// The hand's layer has to be DRAWN first -- psprites draw in id order
-		// and a bone is only known once its model has been drawn -- which is
-		// why these ids (900020 / 1900020) sit above the hands' (900000 /
-		// 1900000). Literals rather than RS_Hands' consts: this is a separate
-		// package and should not need that class to exist. With rs_hands off
-		// there is no hand model to anchor to, the engine ignores the anchor,
-		// and the plate falls back to its MODELDEF offsets.
-		psp.AnchorLayer = (hand == 0) ? 900000 : 1900000;
-		psp.AnchorBone  = 'HANDPALM_joint';
-
-		String pre = (hand == 0) ? "rs_handhud_m" : "rs_handhud_o";
-		psp.AnchorOfs = (cvNum(pre .. "_ofs_x", p, 0.0),
-		                 cvNum(pre .. "_ofs_y", p, 0.0),
-		                 cvNum(pre .. "_ofs_z", p, 0.0));
-		psp.AnchorAngles = (cvNum(pre .. "_yaw",   p, 0.0),
-		                    cvNum(pre .. "_pitch", p, 0.0),
-		                    cvNum(pre .. "_roll",  p, 0.0));
-
-		mLayerUp[hand] = true;
+		mUp[m] = true;
 	}
 
-	private void Hide(PlayerInfo p, int hand)
+	private void Hide(PlayerInfo p, int m)
 	{
-		mAlpha[hand] = 0.0;
-		if (!mLayerUp[hand]) return;
-		let psp = p.FindPSprite(LayerFor(hand));
+		if (!mUp[m]) return;
+		let psp = p.FindPSprite(RS_HandHUDMount.LayerOf(m));
 		if (psp) psp.SetState(null);
-		mLayerUp[hand] = false;
+		mUp[m] = false;
 	}
 
-	// The numbers. Play scope, because wr_Stats / RR_Mag / RR_Feed are play.
+	// ---- what the plates say ---------------------------------------------
 	private void Resolve(PlayerInfo p, PlayerPawn pmo)
 	{
-		int wh = weaponHand(p);
-		Weapon w = (wh == 0) ? p.ReadyWeapon : p.OffhandWeapon;
+		Weapon w = Flag("rs_handhud_swap", p, false) ? p.OffhandWeapon : p.ReadyWeapon;
+		ResolveWeapon(p, pmo, w);
+		ResolveVitals(pmo);
+	}
 
+	private void ResolveWeapon(PlayerInfo p, PlayerPawn pmo, Weapon w)
+	{
 		mWepNone   = (w == null) || RS_HandFist.IsFistClass(w.GetClass());
 		mWepLoaded = -1;
 		mWepCap    = 0;
@@ -247,78 +463,22 @@ class RS_HandHUD : EventHandler
 		if (!mWepNone)
 		{
 			Ammo a1 = w.Ammo1;
-			int pool = a1 ? a1.Amount : -1;
+			mWepPool = a1 ? a1.Amount : -1;
 
-			if (a1 && cvOn("rr_magazines", p, false))
+			int loaded, cap;
+			[loaded, cap] = RS_HandHUDRead.Magazine(w, p, pmo);
+			if (loaded >= 0)
 			{
-				// The reload lane's split: the Ammo item IS the magazine and
-				// RR_Reserve holds the pool behind it.
-				int f, a;
-				[f, a] = RR_Feed.Resolve(w, p);
-				mWepLoaded = a1.Amount;
-				mWepCap    = RR_Feed.CapOf(a, w, p);
-				mWepPool   = RR_Mag.Pool(pmo, a1);
+				mWepLoaded = loaded;
+				mWepCap    = (cap > 0) ? cap : loaded;
 			}
-			else
-			{
-				// A weapon that keeps its own magazine. THREE PLACES TO LOOK,
-				// in order of how much they know:
-				//
-				//   1. a NAMED FIELD on the weapon, read by reflection. Most
-				//      mods with magazines keep the count in an int on the
-				//      weapon class; the engine can read one by name without
-				//      this package knowing the class exists. RS_HandHUDRead
-				//      below holds the list of names worth trying and caches
-				//      the one that answered.
-				//   2. wr_Stats, which knows the handful of mods the wheel
-				//      has real compat readers for.
-				//   3. Ammo2 as a magazine, then the flat pool.
-				int fLoaded, fCap;
-				[fLoaded, fCap] = RS_HandHUDRead.Magazine(w, p);
-				if (fLoaded >= 0)
-				{
-					mWepLoaded = fLoaded;
-					mWepCap    = (fCap > 0) ? fCap : fLoaded;
-					mWepPool   = pool;
-					mWepDry    = (fLoaded <= 0);
-					mSigWep = 4 + (mWepLoaded + 1) * 4 + mWepCap * 4096 + mWepPool * 1048576;
-					ResolveVitals(pmo);
-					return;
-				}
-
-				int src, loaded, cap;
-				[src, loaded, cap] = wr_Stats.Magazine(w);
-				if (src != wr_Stats.SRC_UNKNOWN && src != wr_Stats.SRC_MASKED && cap > 0)
-				{
-					if (loaded < 0)
-					{
-						// wr_Rig.hasMagazine's test, inlined (it is private): Ammo2 is a
-						// magazine only when it is a different pool and not an alt-fire pool.
-						bool mag2 = w.Ammo2 != null && w.Ammo1 != w.Ammo2 && !wr_Rig.hasAltFire(w);
-						loaded = mag2 ? w.Ammo2.Amount : (a1 ? a1.Amount : 0);
-					}
-					mWepLoaded = loaded;
-					mWepCap    = cap;
-					mWepPool   = pool;
-				}
-				else
-				{
-					mWepPool = pool;
-				}
-			}
-			mWepDry = (mWepLoaded >= 0) ? (mWepLoaded <= 0) : (pool == 0);
+			mWepDry = (mWepLoaded >= 0) ? (mWepLoaded <= 0) : (mWepPool == 0);
 		}
 
-		// Change signature. Cheap to compute, and it is what keeps the painter
-		// idle on the tics where nothing moved.
-		mSigWep = (mWepNone ? 1 : 0) + (mWepDry ? 2 : 0) + (mWepLoaded + 1) * 4
-		        + mWepCap * 4096 + mWepPool * 1048576;
-
-		ResolveVitals(pmo);
+		mSigAmmo = (mWepNone ? 1 : 0) + (mWepDry ? 2 : 0)
+		         + (mWepLoaded + 1) * 4 + mWepCap * 4096 + mWepPool * 1048576;
 	}
 
-	// The vitals half, split out so the weapon half can return early once it
-	// has an answer without leaving health and armour a tic stale.
 	private void ResolveVitals(PlayerPawn pmo)
 	{
 		mHealth = pmo.health;
@@ -333,12 +493,13 @@ class RS_HandHUD : EventHandler
 			if (k && k.Icon.IsValid()) mKeyIcons.Push(k.Icon);
 		}
 
-		mSigVit = mHealth + mArmor * 1024 + mKeyIcons.Size() * 1048576 + (mArmorIcon.IsValid() ? mArmorIcon.GetIndex() * 8 : 0);
+		mSigVit = mHealth + mArmor * 1024 + mKeyIcons.Size() * 1048576
+		        + (mArmorIcon.IsValid() ? mArmorIcon.GetIndex() * 8 : 0);
 	}
 
-	// `netevent rs-handhud-probe` -- dump both hands' weapons, every field on
-	// them and their value. Typed straight into the console; it needs no bind
-	// and no KEYCONF entry.
+	// `netevent rs-handhud-probe` -- what a mod actually holds, for finding
+	// the field name to put in rs_handhud_magfield. Typed into the console;
+	// it needs no bind and no KEYCONF entry.
 	override void NetworkProcess(ConsoleEvent e)
 	{
 		if (e.Player != consoleplayer) return;
@@ -346,52 +507,15 @@ class RS_HandHUD : EventHandler
 
 		let p = players[consoleplayer];
 		if (!p || !p.mo) return;
-		RS_HandHUDRead.Probe(p.ReadyWeapon,   "main hand");
-		RS_HandHUDRead.Probe(p.OffhandWeapon, "off hand");
+		RS_HandHUDRead.Probe(p.ReadyWeapon,   p.mo, "main hand");
+		RS_HandHUDRead.Probe(p.OffhandWeapon, p.mo, "off hand");
 	}
 
 	// ======================================================================
 	// UI -- the painting
 	// ======================================================================
-	override void UiTick()
-	{
-		let p = players[consoleplayer];
-		if (!p || !p.mo) return;
-		if (!cvOn("rs_handhud", p, true)) return;
-
-		int wh = weaponHand(p);
-
-		// The mugshot animates on its own (pain, grin, dead); it is the one
-		// thing that can change with no number moving.
-		TextureID mug;
-		mug.SetInvalid();
-		if (cvOn("rs_handhud_mugshot", p, true) && StatusBar)
-			mug = StatusBar.GetMugShot(5);
-		int mugSig = mug.IsValid() ? mug.GetIndex() : 0;
-
-		if (mPaintedWep != mSigWep)
-		{
-			PaintWeapon(CanvasFor(wh));
-			mPaintedWep = mSigWep;
-			if (cvOn("rs_handhud_debug", p, false))
-				Console.Printf("[HandHUD] painted %s: canvas=%d bigfont=%d smallfont=%d",
-					CanvasFor(wh),
-					TexMan.GetCanvas(CanvasFor(wh)) ? 1 : 0,
-					bigFont() ? 1 : 0, smallFont() ? 1 : 0);
-		}
-		if (mPaintedVit != mSigVit || mPaintedMug != mugSig)
-		{
-			PaintVitals(CanvasFor(1 - wh), mug);
-			mPaintedVit = mSigVit;
-			mPaintedMug = mugSig;
-		}
-	}
-
 	private ui Font bigFont()
 	{
-		// The status bar's own digits. BIGFONT is the fallback rather than
-		// SMALLFONT because a number nobody can read is the whole failure this
-		// plate exists to avoid.
 		Font f = Font.GetFont("HUDFONT_DOOM");
 		if (!f) f = Font.GetFont("BIGFONT");
 		if (!f) f = Font.GetFont("SMALLFONT");
@@ -405,154 +529,157 @@ class RS_HandHUD : EventHandler
 		return f;
 	}
 
-	// A CANVAS SAMPLES BOTTOM-UP. Everything below authors in natural
-	// coordinates -- y = 0 is the top of the plate as you look at it -- and
-	// this converts. The wheel's card faces hit the same thing and solve it
-	// the same way; drawing top-down without it puts every row on the wrong
-	// half of the plate, mirrored.
-	private ui static int fy(int y) { return CANVAS_H - y; }
-
-	// NO DTA_ TAGS ON TEXT, DELIBERATELY, AND THIS IS WHY THE PLATE WAS BLANK.
-	//
-	// Canvas.DrawText takes the same vararg tag list as DrawTexture, but not
-	// every tag is valid for text -- and an invalid one is a VM abort, not a
-	// warning. The abort lands mid-paint, so the bed had already been drawn
-	// and nothing after it ever was: a black plate with a rim, which is
-	// exactly what this looked like in the headset. A headless load test
-	// cannot catch it because the paint only runs once there is a player.
-	//
-	// So text is drawn plain, and SIZE COMES FROM THE FONT AND THE CANVAS
-	// instead: at 128x64 the stock 14px digits are a fifth of the plate's
-	// height rather than a tenth, without a scaling tag anywhere.
-	private ui void row(Canvas c, Font f, int col, int x, int yTop, String text)
+	override void UiTick()
 	{
-		if (!f || text.Length() == 0) return;
-		c.DrawText(f, col, x, fy(yTop + f.GetHeight()), text);
-		// The line above is the whole call. Nothing else may be added to it.
+		let p = players[consoleplayer];
+		if (!p || !p.mo) return;
+		if (!Flag("rs_handhud", p, true)) return;
+
+		// The mugshot animates on its own, so it is the one thing that can
+		// change with no number moving.
+		TextureID mug;
+		mug.SetInvalid();
+		if (Flag("rs_handhud_mugshot", p, true) && StatusBar)
+			mug = StatusBar.GetMugShot(5);
+		int mugSig = mug.IsValid() ? mug.GetIndex() : 0;
+
+		bool test = Flag("rs_handhud_selftest", p, false);
+
+		for (int m = 0; m < RS_HandHUDMount.COUNT; m++)
+		{
+			if (!mUp[m]) continue;
+
+			int role = MountRole(m, p);
+			int sig;
+			if (test)                              sig = -1;
+			else if (role == RS_HandHUDRole.AMMO)  sig = mSigAmmo;
+			else if (role == RS_HandHUDRole.VITALS) sig = mSigVit + mugSig * 31;
+			else                                   sig = mSigAmmo ^ (mSigVit * 7) ^ (mugSig * 31);
+
+			if (mPainted[m] == sig) continue;
+			mPainted[m] = sig;
+			Paint(m, role, mug, test, p);
+		}
 	}
 
-	// Textures keep DTA_DestWidth/DestHeight, which the wheel already proves
-	// on this engine's canvases -- it is the text tags that were the problem.
-	private ui void icon(Canvas c, TextureID t, int x, int yTop, int w, int h)
+	private ui void Paint(int m, int role, TextureID mug, bool test, PlayerInfo p)
 	{
-		if (!t.IsValid()) return;
-		c.DrawTexture(t, false, x, fy(yTop + h),
-			DTA_DestWidth, w, DTA_DestHeight, h, DTA_FlipY, true);
-	}
-
-	private ui void bed(Canvas c, String canvasName)
-	{
-		// Translucent, the way the wheel declares its card faces -- without
-		// this the plate composites as an opaque black slab.
-		TexMan.SetCanvasTextureTranslucent(canvasName, true);
-		c.Clear(0, 0, CANVAS_W, CANVAS_H, Color(255, 10, 11, 13));
-		c.DrawLineFrame(Color(255, 90, 96, 104), 1, 1, CANVAS_W - 2, CANVAS_H - 2, 1);
-	}
-
-	// Weapon plate:
-	//     3 / 12        loaded / capacity
-	//       128         reserve
-	// or, with no magazine split, the pool alone.
-	private ui void PaintWeapon(String canvasName)
-	{
-		let c = TexMan.GetCanvas(canvasName);
-		if (!c) return;
-		bed(c, canvasName);
+		let cv = new("RS_HandHUDCanvas");
+		if (!cv.Begin(RS_HandHUDMount.CanvasOf(m)))
+		{
+			if (Flag("rs_handhud_debug", p, false))
+				Console.Printf("\cg[HandHUD] %s: canvas %s is not declared",
+					RS_HandHUDMount.NameOf(m), RS_HandHUDMount.CanvasOf(m));
+			return;
+		}
 
 		Font big = bigFont();
 		Font sml = smallFont();
-		if (!big) return;
 
+		if (test) { cv.SelfTest(big); return; }
+		if (!big)
+		{
+			if (Flag("rs_handhud_debug", p, false))
+				Console.Printf("\cg[HandHUD] no usable font -- HUDFONT_DOOM, BIGFONT and SMALLFONT all missing");
+			return;
+		}
+
+		if (role == RS_HandHUDRole.VITALS)
+		{
+			PaintVitals(cv, big, mug);
+		}
+		else if (role == RS_HandHUDRole.BOTH)
+		{
+			PaintVitals(cv, big, mug);
+			PaintAmmo(cv, big, sml, 2);
+		}
+		else
+		{
+			PaintAmmo(cv, big, sml, RS_HandHUDCanvas.PANEL_ALL);
+		}
+	}
+
+	// loaded / capacity across the plate, reserve under it. With no magazine
+	// split -- vanilla ammo, and most weapon packs -- the pool alone, big.
+	private ui void PaintAmmo(RS_HandHUDCanvas cv, Font big, Font sml, int panel)
+	{
 		if (mWepNone)
 		{
-			row(c, big, Font.CR_DARKGRAY, 8, 20, "--");
+			cv.TextCentred(sml, Font.CR_DARKGRAY, panel, 24, "--");
 			return;
 		}
 
 		int col = mWepDry ? Font.CR_DARKRED : Font.CR_UNTRANSLATED;
 		if (mWepLoaded >= 0)
 		{
-			String top = String.Format("%d / %d", mWepLoaded, mWepCap);
-			row(c, big, col, (CANVAS_W - big.StringWidth(top)) / 2, 8, top);
-
-			String res = String.Format("%d", mWepPool);
-			if (sml) row(c, sml, Font.CR_UNTRANSLATED,
-				(CANVAS_W - sml.StringWidth(res)) / 2, 36, res);
+			cv.TextCentred(big, col, panel, 8, String.Format("%d / %d", mWepLoaded, mWepCap));
+			if (mWepPool >= 0)
+				cv.TextCentred(sml, Font.CR_UNTRANSLATED, panel, 36, String.Format("%d", mWepPool));
+		}
+		else if (mWepPool >= 0)
+		{
+			cv.TextCentred(big, col, panel, 20, String.Format("%d", mWepPool));
 		}
 		else
 		{
-			String top = String.Format("%d", mWepPool);
-			row(c, big, col, (CANVAS_W - big.StringWidth(top)) / 2, 20, top);
+			cv.TextCentred(sml, Font.CR_DARKGRAY, panel, 24, "--");
 		}
 	}
 
-	// Vitals plate:
-	//   [mugshot]  health
-	//              armor
-	//              keys
-	private ui void PaintVitals(String canvasName, TextureID mug)
+	// Mugshot on the left, health and armour beside it, keys along the bottom.
+	private ui void PaintVitals(RS_HandHUDCanvas cv, Font big, TextureID mug)
 	{
-		let c = TexMan.GetCanvas(canvasName);
-		if (!c) return;
-		bed(c, canvasName);
-
-		Font big = bigFont();
-		if (!big) return;
+		int all = RS_HandHUDCanvas.PANEL_ALL;
 
 		int x0 = 6;
 		if (mug.IsValid())
 		{
-			icon(c, mug, 4, 6, 28, 34);
+			cv.Icon(mug, all, 4, 6, 28, 34);
 			x0 = 38;
 		}
 
 		TextureID med = TexMan.CheckForTexture("MEDIA0", TexMan.Type_Any, TexMan.TryAny);
-		icon(c, med, x0, 4, 12, 12);
-		row(c, big, Font.CR_UNTRANSLATED, x0 + 16, 4, String.Format("%d", mHealth));
+		cv.Icon(med, all, x0, 4, 12, 12);
+		cv.Text(big, Font.CR_UNTRANSLATED, all, x0 + 16, 4, String.Format("%d", mHealth));
 
 		if (mArmor > 0)
 		{
-			icon(c, mArmorIcon, x0, 24, 12, 12);
-			row(c, big, Font.CR_UNTRANSLATED, x0 + 16, 24, String.Format("%d", mArmor));
+			cv.Icon(mArmorIcon, all, x0, 22, 12, 12);
+			cv.Text(big, Font.CR_UNTRANSLATED, all, x0 + 16, 22, String.Format("%d", mArmor));
 		}
 
 		int kx = x0;
 		for (int i = 0; i < mKeyIcons.Size() && i < 6; i++)
 		{
-			icon(c, mKeyIcons[i], kx, 46, 10, 14);
+			cv.Icon(mKeyIcons[i], all, kx, 44, 10, 14);
 			kx += 12;
 		}
 	}
 }
 
-
 // =====================================================================
 // RS_HandHUDRead -- READING SOMEBODY ELSE'S MAGAZINE.
 //
-// A mod that keeps a magazine keeps it in an int on its weapon class, and
-// this package has no idea that class exists. The fork's reflection natives
-// close that gap: level.GetFieldInt(obj, "name", out value) reads a field by
-// NAME, so a list of the names mods actually use covers most of them without
-// a compat reader per mod.
+// THREE SHAPES, AND A MOD PICKS ONE:
 //
-// The list is ordered by how unambiguous the name is. "mag" and "clip" are
-// last because plenty of things are called that without being a count.
+//   a FIELD on the weapon    modern ZScript. Read by name through the fork's
+//                            reflection natives -- this package never has to
+//                            know the class exists.
+//   Ammo2                    the classic ZDoom idiom.
+//   an INVENTORY ITEM        DECORATE-era mods. Project Brutality counts the
+//                            pump shotgun's shells in an item called
+//                            PumpshotgunMagazine on the PLAYER; there is no
+//                            field anywhere to read.
 //
-// CACHED PER CLASS, because the answer never changes for a class and the
-// probe is a string compare per candidate. A class that answers nothing is
-// cached too -- the miss is the expensive case and it is the common one.
-//
-// rs_handhud_magfield overrides the whole list with one name, which is how a
-// mod the list does not cover gets read without a code change: run
-// `netevent rs-handhud-probe`, read the field names off the console, put one
-// in the cvar.
+// The third is the one that needs work, because nothing links the item to the
+// gun except the two names agreeing. See ItemMagazine.
+// =====================================================================
 class RS_HandHUDRead
 {
 	// A LOOKUP FUNCTION, NOT AN ARRAY. ZScript's `static const X[]` takes
 	// numeric types only, and a class may not hold a static member variable
-	// at all -- so a list of names has to be a switch. Ordered by how
-	// unambiguous the name is: "mag" and "clip" are last because plenty of
-	// things are called that without being a count.
+	// at all. Ordered by how unambiguous the name is: "mag" and "clip" are
+	// last because plenty of things are called that without being a count.
 	const MAG_COUNT = 24;
 	private static String MagName(int i)
 	{
@@ -592,25 +719,12 @@ class RS_HandHUDRead
 		return "";
 	}
 
-	// THREE SHAPES, AND A MOD PICKS ONE.
-	//
-	//   a FIELD on the weapon        modern ZScript. Read by name.
-	//   Ammo2                        the classic ZDoom idiom, handled by the
-	//                                caller before this is reached.
-	//   an INVENTORY ITEM            DECORATE-era mods -- Project Brutality's
-	//                                PumpshotgunMagazine and everything shaped
-	//                                like it. No field exists to read.
-	//
-	// The third is the one that needs work, because nothing links the item to
-	// the gun except the two names agreeing. See ItemMagazine.
-	//
 	// loaded, capacity. loaded < 0 means "nothing here knows".
-	static int, int Magazine(Weapon w, PlayerInfo p)
+	static int, int Magazine(Weapon w, PlayerInfo p, PlayerPawn pmo)
 	{
 		if (!w || !level) return -1, 0;
 
-		// The manual override wins outright, and answers with only a count --
-		// a capacity of 0 makes the plate show the number on its own.
+		// The manual override wins outright.
 		let cv = CVar.GetCVar("rs_handhud_magfield", p);
 		String forced = cv ? cv.GetString() : "";
 		if (forced.Length() > 0)
@@ -627,8 +741,10 @@ class RS_HandHUDRead
 				return v, CapFor(w);
 		}
 
-		// No field: try the inventory shape.
-		let pmo = (w.Owner != null) ? PlayerPawn(w.Owner) : null;
+		// Ammo2 as a magazine: a different pool from Ammo1, with a real cap.
+		if (w.Ammo2 && w.Ammo1 != w.Ammo2 && w.Ammo2.MaxAmount > 1)
+			return w.Ammo2.Amount, w.Ammo2.MaxAmount;
+
 		if (pmo)
 		{
 			int il, ic;
@@ -638,13 +754,18 @@ class RS_HandHUDRead
 		return -1, 0;
 	}
 
+	private static int CapFor(Weapon w)
+	{
+		for (int i = 0; i < CAP_COUNT; i++)
+		{
+			int v;
+			if (level.GetFieldInt(w, CapName(i), v) && v > 0)
+				return v;
+		}
+		return 0;
+	}
+
 	// A MAGAZINE KEPT AS AN INVENTORY ITEM.
-	//
-	// Project Brutality counts the pump shotgun's shells in an item called
-	// PumpshotgunMagazine sitting on the player; there is no field anywhere to
-	// read and no compat reader could keep up with a mod that adds guns. What
-	// IS reliable is that the two names agree -- the item is named after the
-	// gun -- so the item can be found by matching them.
 	//
 	// THREE TESTS, and all three are needed:
 	//
@@ -654,16 +775,15 @@ class RS_HandHUDRead
 	//      "pbpumpshotgun".
 	//   3. IT CAN HOLD MORE THAN ONE. This is what separates a magazine from
 	//      the flags these mods are full of -- PBPumpShotgunHasUnloaded,
-	//      RevolverHasUnloaded, FlamerUnloaded are all MaxAmount 1, and every
-	//      one of them ends in "loaded".
+	//      RevolverHasUnloaded and FlamerUnloaded all end in "loaded" and are
+	//      all MaxAmount 1.
 	//
-	// MaxAmount doubles as the capacity, which is the number the mod already
-	// had to declare for the item to work at all.
+	// MaxAmount doubles as the capacity: it is the number the mod already had
+	// to declare for the item to work at all.
 	static int, int ItemMagazine(Weapon w, PlayerPawn pmo)
 	{
 		if (!w || !pmo) return -1, 0;
-		String wn = w.GetClassName();
-		wn = Squash(wn);
+		String wn = Squash(w.GetClassName());
 		if (wn.Length() < 3) return -1, 0;
 
 		Inventory best = null;
@@ -678,8 +798,8 @@ class RS_HandHUDRead
 			if (stem.Length() < 3) continue;
 			if (wn.IndexOf(stem) < 0) continue;
 
-			// Longest stem wins: "pumpshotgun" beats "shotgun" for a weapon
-			// whose name contains both.
+			// Longest stem wins: "pumpshotgun" beats "shotgun" on a weapon
+			// whose name holds both.
 			if (int(stem.Length()) > bestStem)
 			{
 				bestStem = stem.Length();
@@ -703,11 +823,10 @@ class RS_HandHUDRead
 	}
 
 	// The name with its magazine word removed, or "" if it had none. Longest
-	// words first: "magazine" before "mag", or every magazine keeps an "azine".
+	// words first, or every magazine keeps an "azine".
 	private static String MagStem(String n)
 	{
-		int c = MagWordCount();
-		for (int i = 0; i < c; i++)
+		for (int i = 0; i < 6; i++)
 		{
 			String word = MagWord(i);
 			int at = n.IndexOf(word);
@@ -718,7 +837,6 @@ class RS_HandHUDRead
 		return "";
 	}
 
-	private static int MagWordCount() { return 6; }
 	private static String MagWord(int i)
 	{
 		switch (i)
@@ -733,34 +851,19 @@ class RS_HandHUDRead
 		return "";
 	}
 
-	private static int CapFor(Weapon w)
-	{
-		for (int i = 0; i < CAP_COUNT; i++)
-		{
-			int v;
-			if (level.GetFieldInt(w, CapName(i), v) && v > 0)
-				return v;
-		}
-		return 0;
-	}
-
-	// EVERY FIELD ON THE WEAPON, printed. The answer to "what does this mod
-	// call its magazine" for a mod nobody has read the source of.
-	static void Probe(Weapon w, String label)
+	// EVERY FIELD ON THE WEAPON, plus the inventory candidates, printed. The
+	// answer to "what does this mod call its magazine" for a mod nobody has
+	// read the source of.
+	static void Probe(Weapon w, PlayerPawn pmo, String label)
 	{
 		if (!w) { Console.Printf("\cg[HandHUD probe] %s: no weapon", label); return; }
 		Console.Printf("\cf[HandHUD probe] %s = %s", label, w.GetClassName());
 
 		if (w.Ammo1)
-			Console.Printf("   Ammo1  %-20s %d / %d", w.Ammo1.GetClassName(), w.Ammo1.Amount, w.Ammo1.MaxAmount);
+			Console.Printf("   Ammo1  %-22s %d / %d", w.Ammo1.GetClassName(), w.Ammo1.Amount, w.Ammo1.MaxAmount);
 		if (w.Ammo2)
-			Console.Printf("   Ammo2  %-20s %d / %d", w.Ammo2.GetClassName(), w.Ammo2.Amount, w.Ammo2.MaxAmount);
+			Console.Printf("   Ammo2  %-22s %d / %d", w.Ammo2.GetClassName(), w.Ammo2.Amount, w.Ammo2.MaxAmount);
 
-		// The inventory shape, listed with the two things that decide it: an
-		// item that can hold more than one, and whether its name matches this
-		// weapon's. A mod using this shape shows its magazine here even when
-		// the weapon itself has no field worth reading.
-		let pmo = (w.Owner != null) ? PlayerPawn(w.Owner) : null;
 		if (pmo)
 		{
 			int il, ic;
@@ -771,7 +874,7 @@ class RS_HandHUDRead
 			for (Inventory it = pmo.Inv; it != null; it = it.Inv)
 			{
 				if (it.MaxAmount <= 1 || Ammo(it)) continue;
-				Console.Printf("      %-28s %d / %d", it.GetClassName(), it.Amount, it.MaxAmount);
+				Console.Printf("      %-26s %d / %d", it.GetClassName(), it.Amount, it.MaxAmount);
 			}
 		}
 
@@ -783,9 +886,9 @@ class RS_HandHUDRead
 			if (!level.FieldAt(w, i, fname, ftype)) continue;
 			int v;
 			if (level.GetFieldInt(w, fname, v))
-				Console.Printf("      %-28s %-10s = %d", fname, ftype, v);
+				Console.Printf("      %-26s %-10s = %d", fname, ftype, v);
 			else
-				Console.Printf("      %-28s %-10s", fname, ftype);
+				Console.Printf("      %-26s %-10s", fname, ftype);
 		}
 	}
 }

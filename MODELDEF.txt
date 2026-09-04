@@ -1,19 +1,50 @@
-// ============================================================
-// RS_HandHUD -- a flat plate on the back of each wrist, skinned with the
-// canvas texture the handler paints. Same base as the hands and the reload's
-// in-hand magazine (Offset 0 -18 -12, UseHandOffsets, PitchOffset 90): those
-// four lines put the model at the hand origin, and everything after them is
-// where THIS plate sits relative to it.
+// RS_HandHUD -- four plates, one per mount.
 //
-// TUNING KNOBS, until a placement mode exists: Offset x/y/z slides the plate
-// in the hand's own frame, Scale sets the half-extents (x = width, y = height,
-// in model units; 2 x 1 is roughly 12 x 6 cm), AngleOffset/PitchOffset/
-// RollOffset turn it. Text upside down? Flip the vt lines in rs_plate.obj.
-Model RS_HandHUDPlateMain
+// THE PLACEMENT SLIDERS LIVE ON THE `PlacementCVars` LINE, not in ZScript.
+// That keyword makes the renderer read, every frame, for this model:
+//
+//     <prefix>_ofs_x   _ofs_y   _ofs_z      position in the hand's own frame
+//     <prefix>_yaw     _pitch   _roll       orientation, degrees
+//     <prefix>_scale                        uniform size
+//     <prefix>_scale_x _scale_y _scale_z    per axis
+//
+// So the menu pages tune these live with no script involved at all.
+// RS_Grenade places its held prop the same way (PlacementCVars rsvg_hm).
+//
+// The Offset / PitchOffset / UseHandOffsets block is the same base the hands
+// and the reload's in-hand magazine use: it puts the model at the hand origin,
+// and the sliders above move it from there.
+//
+// BaseFrame, NOT FrameIndex, and it must come last. BaseFrame is the only
+// thing that registers into BaseSpriteModelFrames and sets hasmodel, which is
+// what a +DECOUPLEDANIMATIONS actor's model lookup reads. Without it the
+// psprite falls through to the sprite path and nothing is drawn.
+//
+// The Skin names a CANVAS declared in ANIMDEFS. It is bound here and never
+// rebound at runtime: A_ChangeModel sets a model override on the actor
+// instance, which takes the BaseSpriteModelFrames lookup out from under these
+// plates and makes them vanish entirely.
+//
+// rs_plate.obj is a flat quad; rs_bracer.obj is the same footprint and UV
+// layout folded into three panels to follow a wrist. Swapping one for the
+// other here is a drop-in -- placement and painting are unaffected.
+
+// ---------------------------------------------------------------- main wrist
+Model RS_HandHUDPlateM
 {
 	Path "models"
-	Model 0 "rs_plate.obj"
+	// THE BRACER, NOT THE FLAT SLAB. Same footprint and same UV layout,
+	// folded into three panels: the middle square to you, the outer two
+	// hinged back 40 degrees so the edges follow the wrist down its sides
+	// instead of floating off the arm or burying themselves in it. The
+	// swap is a drop-in -- placement and painting are unaffected -- and it
+	// belongs HERE rather than in a runtime A_ChangeModel, which rebinds
+	// the model on the actor and takes the BaseSpriteModelFrames lookup
+	// out from under the plate. Guns keep rs_plate.obj: a readout bolted
+	// to a gun has no wrist to wrap.
+	Model 0 "rs_bracer.obj"
 	Skin 0 "RSHUDMAIN"
+	PlacementCVars rs_handhud_m
 	Scale 2.0 1.0 1.0
 	Offset 0.0 -18.0 -12.0
 	UseHandOffsets
@@ -24,11 +55,59 @@ Model RS_HandHUDPlateMain
 	BaseFrame
 }
 
-Model RS_HandHUDPlateOff
+// ----------------------------------------------------------------- off wrist
+Model RS_HandHUDPlateO
+{
+	Path "models"
+	// THE BRACER, NOT THE FLAT SLAB. Same footprint and same UV layout,
+	// folded into three panels: the middle square to you, the outer two
+	// hinged back 40 degrees so the edges follow the wrist down its sides
+	// instead of floating off the arm or burying themselves in it. The
+	// swap is a drop-in -- placement and painting are unaffected -- and it
+	// belongs HERE rather than in a runtime A_ChangeModel, which rebinds
+	// the model on the actor and takes the BaseSpriteModelFrames lookup
+	// out from under the plate. Guns keep rs_plate.obj: a readout bolted
+	// to a gun has no wrist to wrap.
+	Model 0 "rs_bracer.obj"
+	Skin 0 "RSHUDOFF"
+	PlacementCVars rs_handhud_o
+	Scale 2.0 1.0 1.0
+	Offset 0.0 -18.0 -12.0
+	UseHandOffsets
+	NOAUTOREVERSE
+	PitchOffset 90.0
+	RollOffset 0.0
+	AngleOffset 0.0
+	BaseFrame
+}
+
+// ------------------------------------------------------------------ main gun
+// Ships OFF (rs_handhud_gm_on). An on-gun readout has to be placed for the
+// weapon set in front of you, and one that arrives already floating beside a
+// gun reads as a bug rather than a feature.
+Model RS_HandHUDPlateGM
 {
 	Path "models"
 	Model 0 "rs_plate.obj"
-	Skin 0 "RSHUDOFF"
+	Skin 0 "RSHUDGUNM"
+	PlacementCVars rs_handhud_gm
+	Scale 2.0 1.0 1.0
+	Offset 0.0 -18.0 -12.0
+	UseHandOffsets
+	NOAUTOREVERSE
+	PitchOffset 90.0
+	RollOffset 0.0
+	AngleOffset 0.0
+	BaseFrame
+}
+
+// ------------------------------------------------------------------- off gun
+Model RS_HandHUDPlateGO
+{
+	Path "models"
+	Model 0 "rs_plate.obj"
+	Skin 0 "RSHUDGUNO"
+	PlacementCVars rs_handhud_go
 	Scale 2.0 1.0 1.0
 	Offset 0.0 -18.0 -12.0
 	UseHandOffsets

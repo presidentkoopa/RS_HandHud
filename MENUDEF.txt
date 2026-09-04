@@ -1,69 +1,199 @@
-OptionValue "RS_HandHUDShape"
-{
-	0, "Flat panel"
-	1, "Bracer (folded)"
-}
+// RS_HandHUD -- the menu.
+//
+// FOUR PAGES THAT ARE THE SAME PAGE. Every mount exposes an identical shape --
+// on/off, what it says, and seven placement sliders -- because a mount IS a
+// prefix plus a layer. A fifth readout is a fifth copy of one of these blocks
+// with the prefix swapped, and nothing else.
+//
+// THE PLACEMENT SLIDERS DO NOT GO THROUGH ZSCRIPT. MODELDEF names the prefix on
+// a PlacementCVars line and the RENDERER reads <prefix>_ofs_x and friends every
+// frame, so dragging a slider moves the plate in the headset immediately, with
+// the menu still open and no tic in between. That is the whole reason these are
+// cvars rather than script state.
+//
+// Turn on "Hold plates up" before placing anything. Without it a wrist plate
+// fades out the moment you turn your wrist toward the menu instead of toward
+// your face -- which is exactly when you are trying to look at it.
 
-// RS_HandHud -- readouts on the wrists. One page, listed under
-// RS_VR_Unified's "Unified VR HUD and Interaction Options" hub rather than
-// in the main Options menu. AddOptionMenu appends to a menu defined in an
-// earlier pk3, which is why this package has to load after that one.
-AddOptionMenu "RS_VRUnifiedOptions"
+// Entry point. This hangs off the engine's own Options menu so RS_HandHUD is
+// reachable loaded on its own. When it folds into RS_VR_Unified these two lines
+// become AddOptionMenu "RS_VRUnifiedOptions" and it moves under that hub.
+AddOptionMenu "OptionsMenu"
+{
+	Submenu "Hand HUD", "RS_HandHUDOptions"
+}
+AddOptionMenu "OptionsMenuSimple"
 {
 	Submenu "Hand HUD", "RS_HandHUDOptions"
 }
 
-OptionMenu "RS_HandHUDOptions"
+OptionValue "RS_HandHUDRole"
 {
-	Title "RS Hand HUD"
-	StaticText "Readouts strapped to your wrists: the weapon's ammo on", "DarkGray"
-	StaticText "one, health / armor / keys / mugshot on the other.", "DarkGray"
-	StaticText "Roll a wrist toward your face to read it.", "DarkGray"
-	StaticText ""
-	Option "Hand HUD",                 "rs_handhud",         "OnOff"
-	Slider "Plate size",               "rs_handhud_scale",   1.0, 200.0, 1.0, 0
-	Submenu "Place the main-hand plate", "RS_HandHUDPlaceMain"
-	Submenu "Place the off-hand plate",  "RS_HandHUDPlaceOff"
-	Option "Swap hands (left-handed)", "rs_handhud_swap",    "OnOff"
-	Option "Plate shape",              "rs_handhud_shape",   "RS_HandHUDShape"
-	Option "Show the mugshot",         "rs_handhud_mugshot", "OnOff"
-	StaticText ""
-	StaticText "Wrist gate", "Gold"
-	Option "Always shown (for placing)", "rs_handhud_always", "OnOff"
-	Slider "Main wrist: shown at roll",  "rs_handhud_roll_main", -180, 180, 5, 0
-	Slider "Off wrist: shown at roll",   "rs_handhud_roll_off",  -180, 180, 5, 0
-	Slider "Tolerance (degrees)",        "rs_handhud_roll_tol",  10, 90, 5, 0
-	Slider "Fade (tics)",                "rs_handhud_fade",      1, 20, 1, 0
-	StaticText ""
-	Option "Console readout (once a second)", "rs_handhud_debug", "OnOff"
+	0, "Ammo"
+	1, "Vitals"
+	2, "Both"
 }
 
-OptionMenu "RS_HandHUDPlaceMain"
+// =========================================================================
+OptionMenu "RS_HandHUDOptions"
 {
-	Title "Main-hand plate"
-	StaticText "Turn 'Always shown' on first, or the plate keeps", "DarkGray"
-	StaticText "fading out while you are looking at it.", "DarkGray"
+	Title "HAND HUD"
+
 	StaticText ""
-	Slider "Left / Right",   "rs_handhud_m_ofs_x", -24, 24, 0.25, 2
-	Slider "Forward / Back", "rs_handhud_m_ofs_y", -24, 24, 0.25, 2
-	Slider "Down / Up",      "rs_handhud_m_ofs_z", -24, 24, 0.25, 2
+	Option "Hand HUD", "rs_handhud", "OnOff"
+
+	StaticText " "
+	StaticText "Readouts", gold
+	Submenu "Main wrist", "RS_HandHUDMainWrist"
+	Submenu "Off wrist",  "RS_HandHUDOffWrist"
+	Submenu "Main gun",   "RS_HandHUDMainGun"
+	Submenu "Off gun",    "RS_HandHUDOffGun"
+
+	StaticText " "
+	StaticText "Behaviour", gold
+	// On while placing. The wrist gate is the first thing that gets in the way
+	// of tuning the thing the gate applies to.
+	Option "Hold plates up (for placing)", "rs_handhud_always",   "OnOff"
+	Option "Mugshot",                      "rs_handhud_mugshot",  "OnOff"
+	// Makes both wrists describe the other hand's weapon. For a left-hander.
+	Option "Swap hands (left-handed)",     "rs_handhud_swap",     "OnOff"
+	Slider "Wrist turn tolerance",         "rs_handhud_roll_tol", 5, 180, 5, 0
+
+	StaticText " "
+	StaticText "Diagnostics", gold
+	// Three coloured bars and a digit per panel. If THIS shows and the readout
+	// does not, the fault is in the numbers, not in the canvas, the skin, the
+	// model, the layer or the placement -- which is the one question worth
+	// being able to answer without guessing at it.
+	Option "Self-test pattern", "rs_handhud_selftest", "OnOff"
+	Option "Debug printout",    "rs_handhud_debug",    "OnOff"
+	// Prints every field on the weapons in your hands, every inventory item
+	// that could be a magazine, and which one the reader matched -- so a mod
+	// that keeps its clip somewhere new can be wired up by name.
+	SafeCommand "Probe held weapons", "netevent rs-handhud-probe"
+	StaticText "then: rs_handhud_magfield <name>"
+
+	StaticText " "
+	SafeCommand "Reset everything", "resetcvar rs_handhud rs_handhud_always rs_handhud_mugshot rs_handhud_swap rs_handhud_roll_tol rs_handhud_debug rs_handhud_selftest rs_handhud_magfield"
+}
+
+// ================================================================ main wrist =
+OptionMenu "RS_HandHUDMainWrist"
+{
+	Title "MAIN WRIST"
+
 	StaticText ""
+	Option "Show",  "rs_handhud_m_on",   "OnOff"
+	Option "Shows", "rs_handhud_m_role", "RS_HandHUDRole"
+	// The roll this wrist is at when it is turned toward your face. Each wrist
+	// has its own because a right hand and a left hand reach that pose from
+	// opposite directions.
+	Slider "Turned-toward-you roll", "rs_handhud_m_roll_gate", -180, 180, 5, 0
+
+	StaticText " "
+	StaticText "Position", gold
+	Slider "Left / Right",   "rs_handhud_m_ofs_x", -60, 60, 0.5, 2
+	Slider "Forward / Back", "rs_handhud_m_ofs_y", -60, 60, 0.5, 2
+	Slider "Down / Up",      "rs_handhud_m_ofs_z", -60, 60, 0.5, 2
+
+	StaticText " "
+	StaticText "Rotation", gold
 	Slider "Yaw",   "rs_handhud_m_yaw",   -180, 180, 5, 0
 	Slider "Pitch", "rs_handhud_m_pitch", -180, 180, 5, 0
 	Slider "Roll",  "rs_handhud_m_roll",  -180, 180, 5, 0
+
+	StaticText " "
+	Slider "Size", "rs_handhud_m_scale", 0, 300, 5, 0
+
+	StaticText " "
+	SafeCommand "Reset main wrist", "resetcvar rs_handhud_m_on rs_handhud_m_role rs_handhud_m_roll_gate rs_handhud_m_ofs_x rs_handhud_m_ofs_y rs_handhud_m_ofs_z rs_handhud_m_yaw rs_handhud_m_pitch rs_handhud_m_roll rs_handhud_m_scale"
 }
 
-OptionMenu "RS_HandHUDPlaceOff"
+// ================================================================= off wrist =
+OptionMenu "RS_HandHUDOffWrist"
 {
-	Title "Off-hand plate"
-	StaticText "Turn 'Always shown' on first, or the plate keeps", "DarkGray"
-	StaticText "fading out while you are looking at it.", "DarkGray"
+	Title "OFF WRIST"
+
 	StaticText ""
-	Slider "Left / Right",   "rs_handhud_o_ofs_x", -24, 24, 0.25, 2
-	Slider "Forward / Back", "rs_handhud_o_ofs_y", -24, 24, 0.25, 2
-	Slider "Down / Up",      "rs_handhud_o_ofs_z", -24, 24, 0.25, 2
-	StaticText ""
+	Option "Show",  "rs_handhud_o_on",   "OnOff"
+	Option "Shows", "rs_handhud_o_role", "RS_HandHUDRole"
+	Slider "Turned-toward-you roll", "rs_handhud_o_roll_gate", -180, 180, 5, 0
+
+	StaticText " "
+	StaticText "Position", gold
+	Slider "Left / Right",   "rs_handhud_o_ofs_x", -60, 60, 0.5, 2
+	Slider "Forward / Back", "rs_handhud_o_ofs_y", -60, 60, 0.5, 2
+	Slider "Down / Up",      "rs_handhud_o_ofs_z", -60, 60, 0.5, 2
+
+	StaticText " "
+	StaticText "Rotation", gold
 	Slider "Yaw",   "rs_handhud_o_yaw",   -180, 180, 5, 0
 	Slider "Pitch", "rs_handhud_o_pitch", -180, 180, 5, 0
 	Slider "Roll",  "rs_handhud_o_roll",  -180, 180, 5, 0
+
+	StaticText " "
+	Slider "Size", "rs_handhud_o_scale", 0, 300, 5, 0
+
+	StaticText " "
+	SafeCommand "Reset off wrist", "resetcvar rs_handhud_o_on rs_handhud_o_role rs_handhud_o_roll_gate rs_handhud_o_ofs_x rs_handhud_o_ofs_y rs_handhud_o_ofs_z rs_handhud_o_yaw rs_handhud_o_pitch rs_handhud_o_roll rs_handhud_o_scale"
+}
+
+// ================================================================== main gun =
+// SHIPS OFF. An on-gun readout has to be placed against the weapon set in front
+// of you -- there is no default that is right for two mods -- and one that
+// arrives already floating beside a gun reads as a bug rather than a feature.
+// No roll gate here: a gun plate is up whenever that hand holds a weapon.
+OptionMenu "RS_HandHUDMainGun"
+{
+	Title "MAIN GUN"
+
+	StaticText ""
+	Option "Show",  "rs_handhud_gm_on",   "OnOff"
+	Option "Shows", "rs_handhud_gm_role", "RS_HandHUDRole"
+
+	StaticText " "
+	StaticText "Position", gold
+	Slider "Left / Right",   "rs_handhud_gm_ofs_x", -60, 60, 0.5, 2
+	Slider "Forward / Back", "rs_handhud_gm_ofs_y", -60, 60, 0.5, 2
+	Slider "Down / Up",      "rs_handhud_gm_ofs_z", -60, 60, 0.5, 2
+
+	StaticText " "
+	StaticText "Rotation", gold
+	Slider "Yaw",   "rs_handhud_gm_yaw",   -180, 180, 5, 0
+	Slider "Pitch", "rs_handhud_gm_pitch", -180, 180, 5, 0
+	Slider "Roll",  "rs_handhud_gm_roll",  -180, 180, 5, 0
+
+	StaticText " "
+	Slider "Size", "rs_handhud_gm_scale", 0, 300, 5, 0
+
+	StaticText " "
+	SafeCommand "Reset main gun", "resetcvar rs_handhud_gm_on rs_handhud_gm_role rs_handhud_gm_ofs_x rs_handhud_gm_ofs_y rs_handhud_gm_ofs_z rs_handhud_gm_yaw rs_handhud_gm_pitch rs_handhud_gm_roll rs_handhud_gm_scale"
+}
+
+// =================================================================== off gun =
+OptionMenu "RS_HandHUDOffGun"
+{
+	Title "OFF GUN"
+
+	StaticText ""
+	Option "Show",  "rs_handhud_go_on",   "OnOff"
+	Option "Shows", "rs_handhud_go_role", "RS_HandHUDRole"
+
+	StaticText " "
+	StaticText "Position", gold
+	Slider "Left / Right",   "rs_handhud_go_ofs_x", -60, 60, 0.5, 2
+	Slider "Forward / Back", "rs_handhud_go_ofs_y", -60, 60, 0.5, 2
+	Slider "Down / Up",      "rs_handhud_go_ofs_z", -60, 60, 0.5, 2
+
+	StaticText " "
+	StaticText "Rotation", gold
+	Slider "Yaw",   "rs_handhud_go_yaw",   -180, 180, 5, 0
+	Slider "Pitch", "rs_handhud_go_pitch", -180, 180, 5, 0
+	Slider "Roll",  "rs_handhud_go_roll",  -180, 180, 5, 0
+
+	StaticText " "
+	Slider "Size", "rs_handhud_go_scale", 0, 300, 5, 0
+
+	StaticText " "
+	SafeCommand "Reset off gun", "resetcvar rs_handhud_go_on rs_handhud_go_role rs_handhud_go_ofs_x rs_handhud_go_ofs_y rs_handhud_go_ofs_z rs_handhud_go_yaw rs_handhud_go_pitch rs_handhud_go_roll rs_handhud_go_scale"
 }
