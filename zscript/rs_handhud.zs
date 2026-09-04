@@ -69,7 +69,6 @@ class RS_HandHUD : EventHandler
 
 	// ---- play state, read by ui -------------------------------------------
 	private double mAlpha[2];       // current fade per hand
-	private Name   mShape[2];       // mesh currently bound, so it is bound once
 	private bool   mLayerUp[2];     // the psprite is currently installed
 
 	// The numbers, resolved in play scope because the resolvers are play.
@@ -192,22 +191,6 @@ class RS_HandHUD : EventHandler
 		psp.scale = (scale, scale);
 		psp.alpha = alpha;
 
-		// FLAT SLAB OR BRACER. Swapped on the item rather than declared twice
-		// in MODELDEF, the way RS_HolsterMarker picks its reticle shape: the
-		// two meshes share a footprint and a UV layout, so this changes how
-		// the plate SITS without touching where it was placed or what is
-		// painted on it.
-		//
-		// The skin goes with it. A_ChangeModel binding a model without one
-		// leaves the canvas unbound and the plate renders untextured.
-		Name shape = (cvNum("rs_handhud_shape", p, 1.0) >= 0.5)
-			? 'rs_bracer.obj' : 'rs_plate.obj';
-		if (mShape[hand] != shape)
-		{
-			mShape[hand] = shape;
-			it.A_ChangeModel(ClassFor(hand), 0, "models", shape,
-			                 0, "", (hand == 0) ? 'RSHUDMAIN' : 'RSHUDOFF');
-		}
 
 		// ANCHORED TO THE HAND, which is what makes the placement sliders
 		// below do anything at all: AnchorOfs and AnchorAngles are only read
