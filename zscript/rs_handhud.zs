@@ -64,8 +64,8 @@ class RS_HandHUD : EventHandler
 	const LAYER_OFF  = 1900020;
 
 	// Must match the canvastexture lines in ANIMDEFS.
-	const CANVAS_W = 256;
-	const CANVAS_H = 128;
+	const CANVAS_W = 128;
+	const CANVAS_H = 64;
 
 	// ---- play state, read by ui -------------------------------------------
 	private double mAlpha[2];       // current fade per hand
@@ -388,41 +388,83 @@ class RS_HandHUD : EventHandler
 
 	private ui Font bigFont()
 	{
-		Font f = Font.GetFont("HUDFONT_DOOM");    // the big red status-bar digits
+		// The status bar's own digits. BIGFONT is the fallback rather than
+		// SMALLFONT because a number nobody can read is the whole failure this
+		// plate exists to avoid.
+		Font f = Font.GetFont("HUDFONT_DOOM");
 		if (!f) f = Font.GetFont("BIGFONT");
+		if (!f) f = Font.GetFont("SMALLFONT");
 		return f;
 	}
 	private ui Font smallFont()
 	{
-		Font f = Font.GetFont("INDEXFONT_DOOM");  // the small yellow ones
+		Font f = Font.GetFont("INDEXFONT_DOOM");
 		if (!f) f = Font.GetFont("SMALLFONT");
+		if (!f) f = Font.GetFont("BIGFONT");
 		return f;
 	}
 
-	private ui void bed(Canvas c)
+	// A CANVAS SAMPLES BOTTOM-UP. Everything below authors in natural
+	// coordinates -- y = 0 is the top of the plate as you look at it -- and
+	// this converts. The wheel's card faces hit the same thing and solve it
+	// the same way; drawing top-down without it puts every row on the wrong
+	// half of the plate, mirrored.
+	private ui static int fy(int y) { return CANVAS_H - y; }
+
+	// NO DTA_ TAGS ON TEXT, DELIBERATELY, AND THIS IS WHY THE PLATE WAS BLANK.
+	//
+	// Canvas.DrawText takes the same vararg tag list as DrawTexture, but not
+	// every tag is valid for text -- and an invalid one is a VM abort, not a
+	// warning. The abort lands mid-paint, so the bed had already been drawn
+	// and nothing after it ever was: a black plate with a rim, which is
+	// exactly what this looked like in the headset. A headless load test
+	// cannot catch it because the paint only runs once there is a player.
+	//
+	// So text is drawn plain, and SIZE COMES FROM THE FONT AND THE CANVAS
+	// instead: at 128x64 the stock 14px digits are a fifth of the plate's
+	// height rather than a tenth, without a scaling tag anywhere.
+	private ui void row(Canvas c, Font f, int col, int x, int yTop, String text)
 	{
-		// Dark bed, thin rim -- the Aliens pulse-rifle counter's bezel.
+		if (!f || text.Length() == 0) return;
+		c.DrawText(f, col, x, fy(yTop + f.GetHeight()), text);
+		// The line above is the whole call. Nothing else may be added to it.
+	}
+
+	// Textures keep DTA_DestWidth/DestHeight, which the wheel already proves
+	// on this engine's canvases -- it is the text tags that were the problem.
+	private ui void icon(Canvas c, TextureID t, int x, int yTop, int w, int h)
+	{
+		if (!t.IsValid()) return;
+		c.DrawTexture(t, false, x, fy(yTop + h),
+			DTA_DestWidth, w, DTA_DestHeight, h, DTA_FlipY, true);
+	}
+
+	private ui void bed(Canvas c, String canvasName)
+	{
+		// Translucent, the way the wheel declares its card faces -- without
+		// this the plate composites as an opaque black slab.
+		TexMan.SetCanvasTextureTranslucent(canvasName, true);
 		c.Clear(0, 0, CANVAS_W, CANVAS_H, Color(255, 10, 11, 13));
-		c.DrawLineFrame(Color(255, 70, 74, 80), 2, 2, CANVAS_W - 4, CANVAS_H - 4, 2);
+		c.DrawLineFrame(Color(255, 90, 96, 104), 1, 1, CANVAS_W - 2, CANVAS_H - 2, 1);
 	}
 
 	// Weapon plate:
-	//     3 / 12        loaded / capacity, big red digits
-	//       128         reserve, small yellow digits
-	// or, with no magazine split, the pool alone in big digits.
+	//     3 / 12        loaded / capacity
+	//       128         reserve
+	// or, with no magazine split, the pool alone.
 	private ui void PaintWeapon(String canvasName)
 	{
 		let c = TexMan.GetCanvas(canvasName);
 		if (!c) return;
-		bed(c);
+		bed(c, canvasName);
 
 		Font big = bigFont();
 		Font sml = smallFont();
-		if (!big || !sml) return;
+		if (!big) return;
 
 		if (mWepNone)
 		{
-			c.DrawText(sml, Font.CR_DARKGRAY, 24, 52, "--", DTA_ScaleX, 3.0, DTA_ScaleY, 3.0);
+			row(c, big, Font.CR_DARKGRAY, 8, 20, "--");
 			return;
 		}
 
@@ -430,60 +472,54 @@ class RS_HandHUD : EventHandler
 		if (mWepLoaded >= 0)
 		{
 			String top = String.Format("%d / %d", mWepLoaded, mWepCap);
-			double sx = 2.6;
-			int tw = int(big.StringWidth(top) * sx);
-			c.DrawText(big, col, (CANVAS_W - tw) / 2, 18, top, DTA_ScaleX, sx, DTA_ScaleY, sx);
+			row(c, big, col, (CANVAS_W - big.StringWidth(top)) / 2, 8, top);
 
 			String res = String.Format("%d", mWepPool);
-			double ss = 2.2;
-			int rw = int(sml.StringWidth(res) * ss);
-			c.DrawText(sml, Font.CR_UNTRANSLATED, (CANVAS_W - rw) / 2, 84, res, DTA_ScaleX, ss, DTA_ScaleY, ss);
+			if (sml) row(c, sml, Font.CR_UNTRANSLATED,
+				(CANVAS_W - sml.StringWidth(res)) / 2, 36, res);
 		}
 		else
 		{
 			String top = String.Format("%d", mWepPool);
-			double sx = 3.4;
-			int tw = int(big.StringWidth(top) * sx);
-			c.DrawText(big, col, (CANVAS_W - tw) / 2, 34, top, DTA_ScaleX, sx, DTA_ScaleY, sx);
+			row(c, big, col, (CANVAS_W - big.StringWidth(top)) / 2, 20, top);
 		}
 	}
 
 	// Vitals plate:
-	//   [mugshot]  MEDIA0  82
-	//              armor   40
+	//   [mugshot]  health
+	//              armor
 	//              keys
 	private ui void PaintVitals(String canvasName, TextureID mug)
 	{
 		let c = TexMan.GetCanvas(canvasName);
 		if (!c) return;
-		bed(c);
+		bed(c, canvasName);
 
 		Font big = bigFont();
 		if (!big) return;
 
-		int x0 = 14;
+		int x0 = 6;
 		if (mug.IsValid())
 		{
-			// The face is 24x29; at 2.6x it fills the left third.
-			c.DrawTexture(mug, false, 12, 22, DTA_ScaleX, 2.6, DTA_ScaleY, 2.6);
-			x0 = 92;
+			icon(c, mug, 4, 6, 28, 34);
+			x0 = 38;
 		}
 
 		TextureID med = TexMan.CheckForTexture("MEDIA0", TexMan.Type_Any, TexMan.TryAny);
-		if (med.IsValid()) c.DrawTexture(med, false, x0, 16, DTA_ScaleX, 1.6, DTA_ScaleY, 1.6);
-		c.DrawText(big, Font.CR_UNTRANSLATED, x0 + 40, 20, String.Format("%d", mHealth), DTA_ScaleX, 2.2, DTA_ScaleY, 2.2);
+		icon(c, med, x0, 4, 12, 12);
+		row(c, big, Font.CR_UNTRANSLATED, x0 + 16, 4, String.Format("%d", mHealth));
 
 		if (mArmor > 0)
 		{
-			if (mArmorIcon.IsValid()) c.DrawTexture(mArmorIcon, false, x0, 60, DTA_ScaleX, 1.6, DTA_ScaleY, 1.6);
-			c.DrawText(big, Font.CR_UNTRANSLATED, x0 + 40, 62, String.Format("%d", mArmor), DTA_ScaleX, 2.2, DTA_ScaleY, 2.2);
+			icon(c, mArmorIcon, x0, 24, 12, 12);
+			row(c, big, Font.CR_UNTRANSLATED, x0 + 16, 24, String.Format("%d", mArmor));
 		}
 
 		int kx = x0;
 		for (int i = 0; i < mKeyIcons.Size() && i < 6; i++)
 		{
-			c.DrawTexture(mKeyIcons[i], false, kx, 100, DTA_ScaleX, 1.6, DTA_ScaleY, 1.6);
-			kx += 24;
+			icon(c, mKeyIcons[i], kx, 46, 10, 14);
+			kx += 12;
 		}
 	}
 }
@@ -643,7 +679,7 @@ class RS_HandHUDRead
 
 			// Longest stem wins: "pumpshotgun" beats "shotgun" for a weapon
 			// whose name contains both.
-			if (stem.Length() > bestStem)
+			if (int(stem.Length()) > bestStem)
 			{
 				bestStem = stem.Length();
 				best = it;
