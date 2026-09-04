@@ -27,6 +27,12 @@ AddOptionMenu "OptionsMenuSimple"
 	Submenu "Hand HUD", "RS_HandHUDOptions"
 }
 
+OptionValue "RS_HandHUDRenderer"
+{
+	0, "Canvas plates"
+	1, "Layered digits"
+}
+
 OptionValue "RS_HandHUDRole"
 {
 	0, "Ammo"
@@ -41,6 +47,14 @@ OptionMenu "RS_HandHUDOptions"
 
 	StaticText ""
 	Option "Hand HUD", "rs_handhud", "OnOff"
+
+	// Same numbers either way; only the delivery differs. Layered digits are
+	// Ermac's mechanism -- a psprite layer per digit, nothing painted, so
+	// nothing can come up blank. Canvas plates can draw bars, icons and a
+	// mugshot anywhere on a mesh folded to the wrist, and have more ways to
+	// fail. Both stay.
+	Option "Draw with", "rs_handhud_renderer", "RS_HandHUDRenderer"
+	Submenu "Layered digits placement", "RS_HandHUDLayered"
 
 	StaticText " "
 	StaticText "Readouts", gold
@@ -196,4 +210,32 @@ OptionMenu "RS_HandHUDOffGun"
 
 	StaticText " "
 	SafeCommand "Reset off gun", "resetcvar rs_handhud_go_on rs_handhud_go_role rs_handhud_go_ofs_x rs_handhud_go_ofs_y rs_handhud_go_ofs_z rs_handhud_go_yaw rs_handhud_go_pitch rs_handhud_go_roll rs_handhud_go_scale"
+}
+
+// ============================================================ layered digits =
+// The digits are sprites on psprite layers, so they are placed on the psprite
+// directly -- these do not go through PlacementCVars and there is nothing per
+// mount. Both wrists use one layout; they are mirror images of each other.
+//
+// The big row is 14x16 at size 1, so a spacing under 14 overlaps deliberately.
+OptionMenu "RS_HandHUDLayered"
+{
+	Title "LAYERED DIGITS"
+
+	StaticText ""
+	StaticText "The art", gold
+	StaticText "TEXTURES.txt maps RSHN/RSHY onto the"
+	StaticText "iwad status-bar digits. Repoint it at"
+	StaticText "better art; no code changes."
+
+	StaticText " "
+	StaticText "Placement", gold
+	Slider "Left / Right",    "rs_handhud_lay_x",     -160, 160, 1, 0
+	Slider "Down / Up",       "rs_handhud_lay_y",     -160, 160, 1, 0
+	Slider "Digit spacing",   "rs_handhud_lay_gap",      0,  40, 1, 0
+	Slider "Second row drop", "rs_handhud_lay_row",    -40,  60, 1, 0
+	Slider "Size",            "rs_handhud_lay_scale",  0.1, 6.0, 0.1, 2
+
+	StaticText " "
+	SafeCommand "Reset layered digits", "resetcvar rs_handhud_lay_x rs_handhud_lay_y rs_handhud_lay_gap rs_handhud_lay_row rs_handhud_lay_scale"
 }

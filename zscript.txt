@@ -9,4 +9,5 @@
 // Same version as the package it rides on.
 version "5.0.0"
 
+#include "zscript/rs_handhud_layers.zs"
 #include "zscript/rs_handhud.zs"

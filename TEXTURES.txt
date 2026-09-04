@@ -1,0 +1,39 @@
+// RS_HandHUD -- glyphs for the LAYERED renderer.
+//
+// Ermac's wrist HUD draws numbers as sprites on psprite layers, one layer per
+// digit, and it works because it asks nothing of the engine beyond what every
+// weapon already does. His art (WH00..WH11) is not in the build we have -- zero
+// lumps -- so the same mechanism is fed from the iwad instead, which is always
+// present and needs no author.
+//
+//   STTNUM0-9   14x16   the big red status-bar digits
+//   STYSNUM0-9   4x6    the small yellow ones
+//   STTPRCNT    14x16   the percent sign
+//
+// Frames run A..J for 0..9, so the handler picks a digit with
+// FindState("Digits") + value and never needs a jump chain.
+
+sprite RSHNA0 14 16 { Patch STTNUM0 0 0 }
+sprite RSHNB0 14 16 { Patch STTNUM1 0 0 }
+sprite RSHNC0 14 16 { Patch STTNUM2 0 0 }
+sprite RSHND0 14 16 { Patch STTNUM3 0 0 }
+sprite RSHNE0 14 16 { Patch STTNUM4 0 0 }
+sprite RSHNF0 14 16 { Patch STTNUM5 0 0 }
+sprite RSHNG0 14 16 { Patch STTNUM6 0 0 }
+sprite RSHNH0 14 16 { Patch STTNUM7 0 0 }
+sprite RSHNI0 14 16 { Patch STTNUM8 0 0 }
+sprite RSHNJ0 14 16 { Patch STTNUM9 0 0 }
+
+sprite RSHYA0 4 6 { Patch STYSNUM0 0 0 }
+sprite RSHYB0 4 6 { Patch STYSNUM1 0 0 }
+sprite RSHYC0 4 6 { Patch STYSNUM2 0 0 }
+sprite RSHYD0 4 6 { Patch STYSNUM3 0 0 }
+sprite RSHYE0 4 6 { Patch STYSNUM4 0 0 }
+sprite RSHYF0 4 6 { Patch STYSNUM5 0 0 }
+sprite RSHYG0 4 6 { Patch STYSNUM6 0 0 }
+sprite RSHYH0 4 6 { Patch STYSNUM7 0 0 }
+sprite RSHYI0 4 6 { Patch STYSNUM8 0 0 }
+sprite RSHYJ0 4 6 { Patch STYSNUM9 0 0 }
+
+// Percent, and a blank of the same footprint for leading zeros.
+sprite RSHP A0 14 16 { Patch STTPRCNT 0 0 }

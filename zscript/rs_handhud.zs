@@ -377,19 +377,42 @@ class RS_HandHUD : EventHandler
 
 		Resolve(p, pmo);
 
+		// TWO RENDERERS, ONE SET OF NUMBERS. Resolve() has already worked out
+		// what the readout says; all that differs below is how it gets in
+		// front of you. 0 paints a canvas onto a model, 1 assembles digits out
+		// of psprite layers the way Ermac's does. Selecting one puts the
+		// other's layers away rather than leaving them behind it.
+		int renderer = Opt("rs_handhud_renderer", p, 1);
+
 		for (int m = 0; m < RS_HandHUDMount.COUNT; m++)
 		{
-			if (MountOn(m, p) && Visible(p, pmo, m)) Show(p, pmo, m);
-			else                                     Hide(p, m);
+			if (renderer == 0 && MountOn(m, p) && Visible(p, pmo, m)) Show(p, pmo, m);
+			else                                                     Hide(p, m);
+		}
+
+		for (int hand = 0; hand < 2; hand++)
+		{
+			int m = (hand == 0) ? RS_HandHUDMount.M_WRIST_MAIN
+			                    : RS_HandHUDMount.M_WRIST_OFF;
+			if (renderer == 1 && MountOn(m, p) && Visible(p, pmo, m))
+				ShowGlyphs(p, pmo, hand, MountRole(m, p));
+			else
+				HideGlyphs(p, hand);
 		}
 
 		if (Flag("rs_handhud_debug", p, false) && (level.time % 35) == 0)
 			// paints=0 WITH A PLATE UP MEANS THE PAINTER IS NOT RUNNING, and
 			// that is a different fault from anything it could draw wrong --
 			// worth one number rather than another afternoon of guessing.
-			Console.Printf("[HandHUD/play] roll %.0f/%.0f  up %d%d%d%d  wep %d/%d +%d dry=%d none=%d  hp %d ar %d keys %d",
+			// glyphs: how many of the twelve digit layers are installed, and
+			// what the leftmost of each row resolved to. A layered renderer
+			// that draws nothing looks exactly like one that is switched off,
+			// so it has to say which it is.
+			Console.Printf("[HandHUD/play] rend %d  roll %.0f/%.0f  up %d%d%d%d  glyphs %d/12 [%s]  wep %d/%d +%d dry=%d none=%d  hp %d ar %d keys %d",
+				Opt("rs_handhud_renderer", p, 1),
 				pmo.MainHandRoll, pmo.OffhandRoll,
 				mUp[0], mUp[1], mUp[2], mUp[3],
+				GlyphCount(p), GlyphRead(p),
 				mWepLoaded, mWepCap, mWepPool, mWepDry, mWepNone,
 				mHealth, mArmor, mKeyIcons.Size());
 	}
@@ -452,6 +475,144 @@ class RS_HandHUD : EventHandler
 			if (!psp) return;
 		}
 		mUp[m] = true;
+	}
+
+	// ======================================================================
+	// THE LAYERED RENDERER
+	// ======================================================================
+
+	// Three big digits over three small ones. Which numbers they are is the
+	// role's business, exactly as it is for the canvas -- ammo puts loaded
+	// over reserve, vitals puts health over armour.
+	private void ShowGlyphs(PlayerInfo p, PlayerPawn pmo, int hand, int role)
+	{
+		let it = RS_HandHUDGlyphs(pmo.FindInventory('RS_HandHUDGlyphs'));
+		if (!it)
+		{
+			pmo.GiveInventory('RS_HandHUDGlyphs', 1);
+			it = RS_HandHUDGlyphs(pmo.FindInventory('RS_HandHUDGlyphs'));
+			if (!it) return;
+		}
+
+		int top, bottom;
+		if (role == RS_HandHUDRole.VITALS)
+		{
+			top    = mHealth;
+			bottom = mArmor;
+		}
+		else
+		{
+			// No magazine split -- vanilla ammo and most weapon packs -- means
+			// the pool IS the number, and there is nothing to put underneath.
+			top    = (mWepLoaded >= 0) ? mWepLoaded : mWepPool;
+			bottom = (mWepLoaded >= 0) ? mWepPool   : -1;
+		}
+
+		double x   = Num("rs_handhud_lay_x",     p,   0.0);
+		double y   = Num("rs_handhud_lay_y",     p,   0.0);
+		double gap = Num("rs_handhud_lay_gap",   p,  15.0);
+		double sc  = Num("rs_handhud_lay_scale", p,   1.0);
+		double row = Num("rs_handhud_lay_row",   p,  18.0);
+
+		State big   = it.FindState("Big");
+		State small = it.FindState("Small");
+		State blank = it.FindState("Blank");
+
+		Row(p, it, hand, 0, top,    big,   blank, x, y,       gap,       sc);
+		Row(p, it, hand, 3, bottom, small, blank, x, y + row, gap * 0.3, sc);
+	}
+
+	// One row of three digits, most significant first. A leading zero is a
+	// blank rather than a nought -- 007 rounds is a display, 7 is a readout --
+	// and a negative value blanks the row entirely, which is how "this weapon
+	// has no second number" is said.
+	private void Row(PlayerInfo p, Inventory it, int hand, int slot0, int value,
+	                 State digits, State blank, double x, double y,
+	                 double gap, double sc)
+	{
+		bool shown = false;
+		int v = clamp(value, -1, 999);
+		for (int i = 0; i < 3; i++)
+		{
+			int place = (i == 0) ? 100 : ((i == 1) ? 10 : 1);
+			int d = (v < 0) ? -1 : (v / place) % 10;
+
+			// The last column always shows, so a value of 0 reads as "0".
+			bool lead = (d == 0) && !shown && (i < 2);
+			if (d >= 0 && !lead) shown = true;
+
+			State st = (d < 0 || lead) ? blank : digits + d;
+			Glyph(p, it, RS_HandHUDLayers.LayerOf(hand, slot0 + i), st,
+			      x + gap * i, y, sc);
+		}
+	}
+
+	// Put one glyph on one layer. Position is set on the psprite directly --
+	// there is no model here, so PlacementCVars has nothing to act on and
+	// A_OverlayOffset would need an action context we are not in.
+	private void Glyph(PlayerInfo p, Inventory it, int layer, State st,
+	                   double x, double y, double sc)
+	{
+		let psp = p.FindPSprite(layer);
+		if (!psp || psp.Caller != it)
+		{
+			p.SetPsprite(layer, st, false, it);
+			psp = p.FindPSprite(layer);
+			if (!psp) return;
+		}
+		else if (psp.CurState != st)
+		{
+			psp.SetState(st);
+		}
+		// Not bobbing and not riding the weapon's own offset: these sit where
+		// they are put, on the hand, and a gun swaying under them would make
+		// the number unreadable at exactly the moment it matters.
+		psp.bAddWeapon = false;
+		psp.bAddBob    = false;
+		psp.x     = x;
+		psp.y     = y;
+		psp.scale = (sc, sc);
+	}
+
+	// How many digit layers exist right now.
+	private int GlyphCount(PlayerInfo p)
+	{
+		int n = 0;
+		for (int hand = 0; hand < 2; hand++)
+			for (int i = 0; i < RS_HandHUDLayers.SLOTS; i++)
+				if (p.FindPSprite(RS_HandHUDLayers.LayerOf(hand, i))) n++;
+		return n;
+	}
+
+	// What those layers are actually showing, as characters -- '.' for a layer
+	// that is not there, '_' for a deliberate blank, otherwise the sprite
+	// frame letter offset back to a digit. Reads straight off the psprites, so
+	// it reports what the renderer DID rather than what it was asked for.
+	private String GlyphRead(PlayerInfo p)
+	{
+		String rd = "";
+		for (int hand = 0; hand < 2; hand++)
+		{
+			if (hand == 1) rd = rd .. "|";
+			for (int i = 0; i < RS_HandHUDLayers.SLOTS; i++)
+			{
+				let psp = p.FindPSprite(RS_HandHUDLayers.LayerOf(hand, i));
+				if (!psp || !psp.CurState)          { rd = rd .. "."; continue; }
+				int frame = psp.CurState.frame;      // 0 == 'A' == the digit 0
+				if (psp.CurState.sprite == 0)       { rd = rd .. "_"; continue; }
+				rd = rd .. String.Format("%d", frame % 10);
+			}
+		}
+		return rd;
+	}
+
+	private void HideGlyphs(PlayerInfo p, int hand)
+	{
+		for (int i = 0; i < RS_HandHUDLayers.SLOTS; i++)
+		{
+			let psp = p.FindPSprite(RS_HandHUDLayers.LayerOf(hand, i));
+			if (psp) psp.SetState(null);
+		}
 	}
 
 	private void Hide(PlayerInfo p, int m)

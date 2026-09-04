@@ -124,3 +124,33 @@ user float rs_handhud_go_scale = 60.0;
 //
 // and read [HandHUD/bench] on stdout.
 user bool rs_handhud_bench = false;
+
+// ================================================================ renderer --
+// HOW THE NUMBERS REACH YOU. The readout is the same either way; only the
+// delivery differs.
+//
+//   0  CANVAS PLATES. A texture painted every tic and worn as the skin of a
+//      model on the wrist. Draws bars, icons, a mugshot and free text at any
+//      position, and the mesh can be folded to follow the arm. More to go
+//      wrong, and it did.
+//
+//   1  LAYERED DIGITS (default). Ermac's mechanism: one psprite layer per
+//      digit, each showing a sprite frame picked by that digit's value.
+//      Nothing is painted, so nothing can be blank. Digits in rows is all it
+//      will ever draw.
+//
+// The layered art is defined in TEXTURES.txt as RSHN A..J and RSHY A..J,
+// mapped onto the iwad's own status-bar digits because Ermac's WH00..WH11 are
+// not in the build we have. Repoint those Patch lines at better art and no
+// code changes.
+user int rs_handhud_renderer = 1;
+
+// ------------------------------------------- layered renderer -- placement --
+// Where the top-left digit sits on the hand, how far apart the digits are, and
+// how far under the big row the small one goes. The big row is 14x16 at scale
+// 1, so a gap under 14 overlaps on purpose.
+user float rs_handhud_lay_x     = 0.0;
+user float rs_handhud_lay_y     = 0.0;
+user float rs_handhud_lay_gap   = 15.0;
+user float rs_handhud_lay_row   = 18.0;
+user float rs_handhud_lay_scale = 1.0;
