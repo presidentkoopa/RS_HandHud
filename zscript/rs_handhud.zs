@@ -347,6 +347,7 @@ class RS_HandHUD : EventHandler
 	// play and never the reverse -- so the painter reports on itself from
 	// UiTick rather than handing a counter to the play-side line.
 	private ui int mCanvasOk;       // 1 once a canvas has actually opened
+	private ui int mBench;          // real paints completed on the bench path
 
 	// ======================================================================
 	// PLAY
@@ -357,7 +358,16 @@ class RS_HandHUD : EventHandler
 		if (!p) return;
 		let pmo = p.mo;
 
-		bool on = pmo && pmo.health > 0 && pmo.OverrideAttackPosDir
+		// OverrideAttackPosDir is "VR is driving the hands", and requiring it
+		// meant the plates could not be brought up on a desktop boot -- so
+		// every fault past this line could only be looked at through a
+		// headset. That is how a one-line bug cost a day. rs_handhud_bench
+		// lifts the requirement so a scripted run can exercise the whole path;
+		// the plates ride hand layers, so without VR they sit wherever the
+		// hands would be, which is fine for a bench and useless for play.
+		bool vr = pmo && pmo.OverrideAttackPosDir;
+		bool on = pmo && pmo.health > 0
+			&& (vr || Flag("rs_handhud_bench", p, false))
 			&& Flag("rs_handhud", p, true);
 		if (!on)
 		{
@@ -541,6 +551,19 @@ class RS_HandHUD : EventHandler
 	{
 		let p = players[consoleplayer];
 		if (!p || !p.mo) return;
+
+		// BENCH CHECK, ahead of every gate.
+		//
+		// A wrist plate needs VR before it will even come up, so the parts
+		// that were failing could only ever be looked at through a headset --
+		// which is how a one-line fault turned into a day. None of the DRAWING
+		// half needs VR: the canvases are declared by ANIMDEFS, the fonts come
+		// from the iwad, and Canvas.DrawText either works or aborts. So this
+		// exercises all of it on a bare boot and says so on stdout, where a
+		// scripted run can read it.
+		if (Flag("rs_handhud_debug", p, false) && (level.time % 35) == 3)
+			BenchCheck(p);
+
 		if (!Flag("rs_handhud", p, true)) return;
 
 		// The mugshot animates on its own, so it is the one thing that can
@@ -586,6 +609,54 @@ class RS_HandHUD : EventHandler
 			Console.Printf("[HandHUD/ui] paints %d  canvasopen %d  fonts %d/%d",
 				mPaints, mCanvasOk,
 				bigFont() ? 1 : 0, smallFont() ? 1 : 0);
+	}
+
+	// Open every canvas, draw the known pattern into it, and report -- with no
+	// player gate, no VR and no plate up. Answers the only three questions
+	// that are not about VR: does the canvas texture exist, does drawing into
+	// it survive, and did the fonts resolve.
+	private ui void BenchCheck(PlayerInfo p)
+	{
+		String canv = "";
+		for (int m = 0; m < RS_HandHUDMount.COUNT; m++)
+		{
+			let cv = new("RS_HandHUDCanvas");
+			bool opened = cv.Begin(RS_HandHUDMount.CanvasOf(m));
+			canv = canv .. (opened ? "1" : "0");
+			if (opened)
+			{
+				// The known pattern first -- bars and text, so a bad draw tag
+				// aborts the VM HERE, on a bench run, and not in a headset.
+				cv.SelfTest(bigFont());
+				mCanvasOk = 1;
+			}
+		}
+
+		// THEN THE REAL THING. SelfTest only proves the canvas takes marks;
+		// PaintVitals and PaintAmmo are the code that actually runs in the
+		// headset, and they draw a mugshot texture, an armour icon, key icons
+		// and several strings that SelfTest never touches. Running them here
+		// means the whole drawing half is exercised on a bare boot -- the
+		// reason a day went by is that none of it could be reached without
+		// putting the headset back on.
+		//
+		// mBench counts completed real paints. If a paint aborts the VM the
+		// count stops climbing and the line stops printing, which is itself
+		// the answer.
+		TextureID mug;
+		mug.SetInvalid();
+		if (Flag("rs_handhud_mugshot", p, true) && StatusBar)
+			mug = StatusBar.GetMugShot(5);
+
+		for (int m = 0; m < RS_HandHUDMount.COUNT; m++)
+		{
+			Paint(m, MountRole(m, p), mug, false, p);
+			mBench++;
+		}
+
+		Console.Printf("[HandHUD/bench] canvas %s  realpaints %d  mug %d  fonts %d/%d  live paints %d",
+			canv, mBench, mug.IsValid() ? 1 : 0,
+			bigFont() ? 1 : 0, smallFont() ? 1 : 0, mPaints);
 	}
 
 	private ui void Paint(int m, int role, TextureID mug, bool test, PlayerInfo p)

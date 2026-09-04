@@ -111,3 +111,16 @@ user float rs_handhud_go_yaw   = 0.0;
 user float rs_handhud_go_pitch = 0.0;
 user float rs_handhud_go_roll  = 0.0;
 user float rs_handhud_go_scale = 60.0;
+
+// BRING THE PLATES UP WITHOUT VR. For a bench run, not for play.
+//
+// The handler normally waits for the engine to be driving the hands before it
+// installs anything, which is correct and which also meant nothing past that
+// gate could be tested without putting the headset on. Everything downstream
+// -- the layers, the resolve, the paint -- works fine on a desktop boot; the
+// plates just sit wherever the hands would be.
+//
+//   doomxr -iwad doom2.wad -file RS_VR_Unified.pk3 RS_HandHud.pk3 //          -nosound -stdout +vr_mode 0 +map map01 //          +rs_handhud_debug 1 +rs_handhud_bench 1
+//
+// and read [HandHUD/bench] on stdout.
+user bool rs_handhud_bench = false;
