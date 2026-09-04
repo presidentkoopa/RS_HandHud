@@ -310,7 +310,7 @@ class RS_HandHUD : EventHandler
 	private int mSigVit;
 
 	// ---- ui state --------------------------------------------------------
-	private ui int mPainted[4];
+	private ui int mPaints;         // paints attempted, for the debug line
 
 	// ---- cvar shorthand --------------------------------------------------
 	clearscope static double Num(String n, PlayerInfo p, double d)
@@ -343,6 +343,11 @@ class RS_HandHUD : EventHandler
 		return Opt(RS_HandHUDMount.PrefixOf(m) .. "_role", p, def);
 	}
 
+	// UI CANNOT BE READ FROM PLAY -- the scope rule runs one way, ui reads
+	// play and never the reverse -- so the painter reports on itself from
+	// UiTick rather than handing a counter to the play-side line.
+	private ui int mCanvasOk;       // 1 once a canvas has actually opened
+
 	// ======================================================================
 	// PLAY
 	// ======================================================================
@@ -369,7 +374,10 @@ class RS_HandHUD : EventHandler
 		}
 
 		if (Flag("rs_handhud_debug", p, false) && (level.time % 35) == 0)
-			Console.Printf("[HandHUD] roll %.0f/%.0f  up %d%d%d%d  wep %d/%d +%d dry=%d none=%d  hp %d ar %d keys %d",
+			// paints=0 WITH A PLATE UP MEANS THE PAINTER IS NOT RUNNING, and
+			// that is a different fault from anything it could draw wrong --
+			// worth one number rather than another afternoon of guessing.
+			Console.Printf("[HandHUD/play] roll %.0f/%.0f  up %d%d%d%d  wep %d/%d +%d dry=%d none=%d  hp %d ar %d keys %d",
 				pmo.MainHandRoll, pmo.OffhandRoll,
 				mUp[0], mUp[1], mUp[2], mUp[3],
 				mWepLoaded, mWepCap, mWepPool, mWepDry, mWepNone,
@@ -549,23 +557,45 @@ class RS_HandHUD : EventHandler
 		{
 			if (!mUp[m]) continue;
 
-			int role = MountRole(m, p);
-			int sig;
-			if (test)                              sig = -1;
-			else if (role == RS_HandHUDRole.AMMO)  sig = mSigAmmo;
-			else if (role == RS_HandHUDRole.VITALS) sig = mSigVit + mugSig * 31;
-			else                                   sig = mSigAmmo ^ (mSigVit * 7) ^ (mugSig * 31);
-
-			if (mPainted[m] == sig) continue;
-			mPainted[m] = sig;
-			Paint(m, role, mug, test, p);
+			// PAINT EVERY TIC. There was a dirty check here -- a signature
+			// of every number, skip the paint when it has not moved -- and it
+			// is what left the plates grey.
+			//
+			// Two ways it lost, and both are the same mistake. A canvas is
+			// ENGINE state, not ours: it does not survive its plate being
+			// hidden, and a wrist plate is hidden and re-shown constantly
+			// because that is what the roll gate does. So the plate came back
+			// up with a blank canvas, the numbers had not changed, and the
+			// dirty check said there was nothing to do -- forever. The other
+			// way is emptier still: at the first tic the stored signature is
+			// zero, and any weapon state that also hashes to zero is never
+			// painted a first time at all.
+			//
+			// It was saving four 128x64 canvases a tic, which is nothing, to
+			// buy an entire class of "why is it blank". Not a trade worth
+			// making twice.
+			Paint(m, MountRole(m, p), mug, test, p);
+			mPaints++;
 		}
+
+		// PAINTS 0 WITH A PLATE UP MEANS THE PAINTER NEVER RAN, and canvas 0
+		// means it ran but the canvas texture would not open. Those are three
+		// different faults -- not running, not opening, drawing the wrong
+		// thing -- and telling them apart is what an afternoon went on.
+		if (Flag("rs_handhud_debug", p, false) && (level.time % 35) == 0)
+			Console.Printf("[HandHUD/ui] paints %d  canvasopen %d  fonts %d/%d",
+				mPaints, mCanvasOk,
+				bigFont() ? 1 : 0, smallFont() ? 1 : 0);
 	}
 
 	private ui void Paint(int m, int role, TextureID mug, bool test, PlayerInfo p)
 	{
 		let cv = new("RS_HandHUDCanvas");
-		if (!cv.Begin(RS_HandHUDMount.CanvasOf(m)))
+		if (cv.Begin(RS_HandHUDMount.CanvasOf(m)))
+		{
+			mCanvasOk = 1;
+		}
+		else
 		{
 			if (Flag("rs_handhud_debug", p, false))
 				Console.Printf("\cg[HandHUD] %s: canvas %s is not declared",
