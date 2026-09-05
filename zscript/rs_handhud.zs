@@ -203,8 +203,11 @@ class RS_HandHUDRole
 // =====================================================================
 class RS_HandHUDCanvas ui
 {
-	const W = 128;      // must match the canvastexture lines in ANIMDEFS
-	const H = 64;
+	// MUST MATCH THE canvastexture LINES IN ANIMDEFS, and those match the art
+	// this canvas replaces: watchface.png is 200x200, so the dial's UV expects
+	// a square. A 2:1 canvas on it is stretched across a round face.
+	const W = 200;
+	const H = 200;
 
 	const PANEL_ALL = -1;
 
@@ -235,8 +238,13 @@ class RS_HandHUDCanvas ui
 		// Translucent, the way the wheel declares its card faces. Without
 		// this the plate composites as an opaque slab.
 		TexMan.SetCanvasTextureTranslucent(name, true);
+		// The dial is ROUND: the canvas corners are off the mesh and a rim drawn
+		// at the canvas edge is never seen. Fill dark and inset the ring so it
+		// lands on the face rather than past it.
 		c.Clear(0, 0, W, H, Color(255, 10, 11, 13));
-		c.DrawLineFrame(Color(255, 90, 96, 104), 1, 1, W - 2, H - 2, 1);
+		int inset = W / 8;
+		c.DrawLineFrame(Color(255, 90, 96, 104),
+			inset, inset, W - inset * 2, H - inset * 2, 2);
 		return true;
 	}
 
@@ -392,6 +400,18 @@ class RS_HandHUD : EventHandler
 		{
 			if (renderer == 0 && MountOn(m, p) && Visible(p, pmo, m)) Show(p, pmo, m);
 			else                                                     Hide(p, m);
+		}
+
+		// The strap. Its own layer one BELOW the dial, so the face draws over
+		// it and either can be switched off without the other. Wrists only --
+		// a gun plate has no wrist to sit on.
+		for (int hand = 0; hand < 2; hand++)
+		{
+			int m = (hand == 0) ? RS_HandHUDMount.M_WRIST_MAIN
+			                    : RS_HandHUDMount.M_WRIST_OFF;
+			bool want = renderer == 0 && MountOn(m, p) && Visible(p, pmo, m)
+				&& Flag(((hand == 0) ? "rs_handhud_m_belt" : "rs_handhud_o_belt"), p, true);
+			ShowBelt(p, pmo, hand, want);
 		}
 
 		for (int hand = 0; hand < 2; hand++)
@@ -616,6 +636,36 @@ class RS_HandHUD : EventHandler
 		{
 			let psp = p.FindPSprite(RS_HandHUDLayers.LayerOf(hand, i));
 			if (psp) psp.SetState(null);
+		}
+	}
+
+	// The strap rides one layer under its dial. Nothing is painted on it -- it
+	// wears watchface.png straight out of RLVR, because a strap has no state.
+	private void ShowBelt(PlayerInfo p, PlayerPawn pmo, int hand, bool want)
+	{
+		int layer = RS_HandHUDMount.LayerOf(
+			(hand == 0) ? RS_HandHUDMount.M_WRIST_MAIN
+			            : RS_HandHUDMount.M_WRIST_OFF) - 1;
+		if (!want)
+		{
+			let old = p.FindPSprite(layer);
+			if (old) old.SetState(null);
+			return;
+		}
+		Name cls = (hand == 0) ? 'RS_HandHUDBeltM' : 'RS_HandHUDBeltO';
+		let it = pmo.FindInventory(cls);
+		if (!it)
+		{
+			pmo.GiveInventory(cls, 1);
+			it = pmo.FindInventory(cls);
+			if (!it) return;
+		}
+		let psp = p.FindPSprite(layer);
+		if (!psp || psp.Caller != it)
+		{
+			State st = it.FindState("Spawn");
+			if (!st) return;
+			p.SetPsprite(layer, st, false, it);
 		}
 	}
 

@@ -33,7 +33,7 @@ Model RS_HandHUDPlateM
 {
 	Path "models/rlvr"
 	Model 0 "w_dial.md3"
-	Skin 0 "watchface.png"
+	Skin 0 "RSHUDMAIN"
 	PlacementCVars rs_hh_m
 	Scale -1.0 1.0 1.0
 	Offset 0.0 -24.0 -10.0
@@ -51,7 +51,7 @@ Model RS_HandHUDPlateO
 {
 	Path "models/rlvr"
 	Model 0 "w_dial.md3"
-	Skin 0 "watchface.png"
+	Skin 0 "RSHUDOFF"
 	PlacementCVars rs_hh_o
 	Scale 1.0 1.0 1.0
 	Offset 0.0 -24.0 -10.0
@@ -109,7 +109,7 @@ Model RS_HandHUDPlateGM
 {
 	Path "models/rlvr"
 	Model 0 "ammo_hud_bg.md3"
-	Skin 0 "ammo_bg1.png"
+	Skin 0 "RSHUDGUNM"
 	PlacementCVars rs_hh_gm
 	Scale -1.0 1.0 1.0
 	Offset 0.0 -32.0 -10.0
@@ -126,7 +126,7 @@ Model RS_HandHUDPlateGO
 {
 	Path "models/rlvr"
 	Model 0 "ammo_hud_bg.md3"
-	Skin 0 "ammo_bg1.png"
+	Skin 0 "RSHUDGUNO"
 	PlacementCVars rs_hh_go
 	Scale 1.0 1.0 1.0
 	Offset 0.0 -32.0 -10.0

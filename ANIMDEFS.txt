@@ -1,12 +1,13 @@
 // RS_HandHUD -- one canvas per mount, named as the Skin of that mount's
 // MODELDEF block and painted by RS_HandHUDCanvas.
 //
-// SIZES MUST MATCH RS_HandHUDCanvas.W/H. 128x64 rather than something larger
-// on purpose: the readout draws with the stock status-bar font at its natural
-// size (a draw tag on canvas TEXT is a VM abort, so scaling one is not an
-// option), and on a canvas this size those 14px digits are a fifth of the
-// plate's height instead of a tenth.
-canvastexture RSHUDMAIN 128 64 fit 128 64 WorldPanning
-canvastexture RSHUDOFF  128 64 fit 128 64 WorldPanning
-canvastexture RSHUDGUNM 128 64 fit 128 64 WorldPanning
-canvastexture RSHUDGUNO 128 64 fit 128 64 WorldPanning
+// 200x200 IS NOT A ROUND NUMBER, IT IS THE DIAL'S NUMBER. w_dial.md3 is UV'd
+// for watchface.png, which is 200x200 square. A 128x64 canvas on that mesh is
+// stretched two to one across a round face and everything on it lands in the
+// wrong place -- so the canvas matches the art it replaces, exactly.
+//
+// MUST MATCH RS_HandHUDCanvas.W/H.
+canvastexture RSHUDMAIN 200 200 fit 200 200 WorldPanning
+canvastexture RSHUDOFF  200 200 fit 200 200 WorldPanning
+canvastexture RSHUDGUNM 300 300 fit 300 300 WorldPanning
+canvastexture RSHUDGUNO 300 300 fit 300 300 WorldPanning
