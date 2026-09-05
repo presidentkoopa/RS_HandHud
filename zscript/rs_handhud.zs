@@ -86,6 +86,10 @@ class RS_HandHUDPlate : Inventory
 	}
 }
 class RS_HandHUDPlateM  : RS_HandHUDPlate {}   // main wrist
+// The strap rides its own layer under the dial, so it can be switched off
+// alone and so tinting the dial does not drag the strap with it.
+class RS_HandHUDBeltM   : RS_HandHUDPlate {}
+class RS_HandHUDBeltO   : RS_HandHUDPlate {}
 class RS_HandHUDPlateO  : RS_HandHUDPlate {}   // off wrist
 class RS_HandHUDPlateGM : RS_HandHUDPlate {}   // main gun
 class RS_HandHUDPlateGO : RS_HandHUDPlate {}   // off gun
@@ -160,12 +164,12 @@ class RS_HandHUDMount
 	{
 		switch (m)
 		{
-		case M_WRIST_MAIN: return "rs_handhud_m";
-		case M_WRIST_OFF:  return "rs_handhud_o";
-		case M_GUN_MAIN:   return "rs_handhud_gm";
-		case M_GUN_OFF:    return "rs_handhud_go";
+		case M_WRIST_MAIN: return "rs_hh_m";
+		case M_WRIST_OFF:  return "rs_hh_o";
+		case M_GUN_MAIN:   return "rs_hh_gm";
+		case M_GUN_OFF:    return "rs_hh_go";
 		}
-		return "rs_handhud_m";
+		return "rs_hh_m";
 	}
 
 	clearscope static String NameOf(int m)

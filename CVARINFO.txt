@@ -53,64 +53,26 @@ user bool rs_handhud_selftest = false;
 user string rs_handhud_magfield = "";
 
 // ================================================== main wrist -- behaviour --
-user bool  rs_handhud_m_on   = true;
 // 0 ammo, 1 vitals, 2 both.
-user int   rs_handhud_m_role = 0;
 // The wrist roll at which this plate is turned toward you.
-user float rs_handhud_m_roll_gate = 90.0;
 
 // --------------------------------------- main wrist -- placement (renderer) --
 // TUNED IN A HEADSET 2026-09-04. Not a starting guess.
-user float rs_handhud_m_ofs_x = 0.0;
-user float rs_handhud_m_ofs_y = 23.0;
-user float rs_handhud_m_ofs_z = 14.0;
-user float rs_handhud_m_yaw   = 0.0;
-user float rs_handhud_m_pitch = 0.0;
-user float rs_handhud_m_roll  = 0.0;
-user float rs_handhud_m_scale = 100.0;
 
 // =================================================== off wrist -- behaviour --
-user bool  rs_handhud_o_on   = true;
-user int   rs_handhud_o_role = 1;
-user float rs_handhud_o_roll_gate = -90.0;
 
 // ---------------------------------------- off wrist -- placement (renderer) --
-user float rs_handhud_o_ofs_x = 0.0;
-user float rs_handhud_o_ofs_y = 23.0;
-user float rs_handhud_o_ofs_z = 14.0;
-user float rs_handhud_o_yaw   = 0.0;
-user float rs_handhud_o_pitch = 0.0;
-user float rs_handhud_o_roll  = 0.0;
-user float rs_handhud_o_scale = 100.0;
 
 // ==================================================== main gun -- behaviour --
 // OFF by default: an on-gun readout has to be placed for the weapon set in
 // front of you, and one that arrives already floating beside a gun reads as a
 // bug rather than a feature. Turn it on, turn rs_handhud_always on, place it.
-user bool  rs_handhud_gm_on   = false;
-user int   rs_handhud_gm_role = 0;
 
 // ----------------------------------------- main gun -- placement (renderer) --
-user float rs_handhud_gm_ofs_x = 0.0;
-user float rs_handhud_gm_ofs_y = 0.0;
-user float rs_handhud_gm_ofs_z = 0.0;
-user float rs_handhud_gm_yaw   = 0.0;
-user float rs_handhud_gm_pitch = 0.0;
-user float rs_handhud_gm_roll  = 0.0;
-user float rs_handhud_gm_scale = 60.0;
 
 // ===================================================== off gun -- behaviour --
-user bool  rs_handhud_go_on   = false;
-user int   rs_handhud_go_role = 0;
 
 // ------------------------------------------ off gun -- placement (renderer) --
-user float rs_handhud_go_ofs_x = 0.0;
-user float rs_handhud_go_ofs_y = 0.0;
-user float rs_handhud_go_ofs_z = 0.0;
-user float rs_handhud_go_yaw   = 0.0;
-user float rs_handhud_go_pitch = 0.0;
-user float rs_handhud_go_roll  = 0.0;
-user float rs_handhud_go_scale = 60.0;
 
 // BRING THE PLATES UP WITHOUT VR. For a bench run, not for play.
 //
@@ -143,7 +105,11 @@ user bool rs_handhud_bench = false;
 // mapped onto the iwad's own status-bar digits because Ermac's WH00..WH11 are
 // not in the build we have. Repoint those Patch lines at better art and no
 // code changes.
-user int rs_handhud_renderer = 1;
+// DEFAULT 0. The layered digits are placed at 0,0 until they are tuned, so
+// defaulting to them shipped a readout that renders nowhere. The canvas
+// plates already have placement measured in a headset, so they are what a
+// fresh install gets.
+user int rs_handhud_renderer = 0;
 
 // ------------------------------------------- layered renderer -- placement --
 // Where the top-left digit sits on the hand, how far apart the digits are, and
@@ -154,3 +120,65 @@ user float rs_handhud_lay_y     = 0.0;
 user float rs_handhud_lay_gap   = 15.0;
 user float rs_handhud_lay_row   = 18.0;
 user float rs_handhud_lay_scale = 1.0;
+
+// ============================================== per-mount, renderer 0 (models) --
+// PREFIX rs_hh_, NOT rs_handhud_. These are `user` cvars: once a value is in
+// doomxr.ini it beats every later default, permanently. The old prefix has a
+// saved _scale of 100 on it -- a hundred TIMES size, because PlacementCVars
+// multiplies raw -- which put a four-metre plate beside the hand and read as a
+// billboard in the distance. Renaming is the only way to make that inert.
+//
+// _ofs_*, _yaw/_pitch/_roll, _scale and _scale_x/y/z are read by the RENDERER,
+// every frame, for the model whose MODELDEF names this prefix. ZScript never
+// sees them.
+//
+// SCALE 1.0 IS CORRECT AND IS NOT A PLACEHOLDER. w_dial.md3 and w_belt.md3 are
+// authored for a hand at Offset 0,-24,-10 at scale 1; MODELDEF already carries
+// that offset, so a fresh install needs no adjustment at all.
+
+// ---------------------------------------------------------------- main wrist --
+user bool  rs_handhud_m_on        = true;
+user int   rs_handhud_m_role      = 0;      // 0 ammo, 1 vitals, 2 both
+user float rs_handhud_m_roll_gate = 90.0;
+user bool  rs_handhud_m_belt      = true;   // the strap under the dial
+user float rs_hh_m_ofs_x = 0.0;
+user float rs_hh_m_ofs_y = 0.0;
+user float rs_hh_m_ofs_z = 0.0;
+user float rs_hh_m_yaw   = 0.0;
+user float rs_hh_m_pitch = 0.0;
+user float rs_hh_m_roll  = 0.0;
+user float rs_hh_m_scale = 1.0;
+
+// ----------------------------------------------------------------- off wrist --
+user bool  rs_handhud_o_on        = true;
+user int   rs_handhud_o_role      = 1;
+user float rs_handhud_o_roll_gate = -90.0;
+user bool  rs_handhud_o_belt      = true;
+user float rs_hh_o_ofs_x = 0.0;
+user float rs_hh_o_ofs_y = 0.0;
+user float rs_hh_o_ofs_z = 0.0;
+user float rs_hh_o_yaw   = 0.0;
+user float rs_hh_o_pitch = 0.0;
+user float rs_hh_o_roll  = 0.0;
+user float rs_hh_o_scale = 1.0;
+
+// ------------------------------------------------------------------ gun plates --
+user bool  rs_handhud_gm_on   = false;
+user int   rs_handhud_gm_role = 0;
+user float rs_hh_gm_ofs_x = 0.0;
+user float rs_hh_gm_ofs_y = 0.0;
+user float rs_hh_gm_ofs_z = 0.0;
+user float rs_hh_gm_yaw   = 0.0;
+user float rs_hh_gm_pitch = 0.0;
+user float rs_hh_gm_roll  = 0.0;
+user float rs_hh_gm_scale = 1.0;
+
+user bool  rs_handhud_go_on   = false;
+user int   rs_handhud_go_role = 0;
+user float rs_hh_go_ofs_x = 0.0;
+user float rs_hh_go_ofs_y = 0.0;
+user float rs_hh_go_ofs_z = 0.0;
+user float rs_hh_go_yaw   = 0.0;
+user float rs_hh_go_pitch = 0.0;
+user float rs_hh_go_roll  = 0.0;
+user float rs_hh_go_scale = 1.0;

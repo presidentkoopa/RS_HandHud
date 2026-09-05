@@ -106,21 +106,21 @@ OptionMenu "RS_HandHUDMainWrist"
 
 	StaticText " "
 	StaticText "Position", gold
-	Slider "Left / Right",   "rs_handhud_m_ofs_x", -60, 60, 0.5, 2
-	Slider "Forward / Back", "rs_handhud_m_ofs_y", -60, 60, 0.5, 2
-	Slider "Down / Up",      "rs_handhud_m_ofs_z", -60, 60, 0.5, 2
+	Slider "Left / Right",   "rs_hh_m_ofs_x", -60, 60, 0.5, 2
+	Slider "Forward / Back", "rs_hh_m_ofs_y", -60, 60, 0.5, 2
+	Slider "Down / Up",      "rs_hh_m_ofs_z", -60, 60, 0.5, 2
 
 	StaticText " "
 	StaticText "Rotation", gold
-	Slider "Yaw",   "rs_handhud_m_yaw",   -180, 180, 5, 0
-	Slider "Pitch", "rs_handhud_m_pitch", -180, 180, 5, 0
-	Slider "Roll",  "rs_handhud_m_roll",  -180, 180, 5, 0
+	Slider "Yaw",   "rs_hh_m_yaw",   -180, 180, 5, 0
+	Slider "Pitch", "rs_hh_m_pitch", -180, 180, 5, 0
+	Slider "Roll",  "rs_hh_m_roll",  -180, 180, 5, 0
 
 	StaticText " "
-	Slider "Size", "rs_handhud_m_scale", 0, 300, 5, 0
+	Slider "Size", "rs_hh_m_scale", 0.1, 5.0, 0.1, 2
 
 	StaticText " "
-	SafeCommand "Reset main wrist", "resetcvar rs_handhud_m_on rs_handhud_m_role rs_handhud_m_roll_gate rs_handhud_m_ofs_x rs_handhud_m_ofs_y rs_handhud_m_ofs_z rs_handhud_m_yaw rs_handhud_m_pitch rs_handhud_m_roll rs_handhud_m_scale"
+	SafeCommand "Reset main wrist", "resetcvar rs_handhud_m_on rs_handhud_m_role rs_handhud_m_roll_gate rs_hh_m_ofs_x rs_hh_m_ofs_y rs_hh_m_ofs_z rs_hh_m_yaw rs_hh_m_pitch rs_hh_m_roll rs_hh_m_scale"
 }
 
 // ================================================================= off wrist =
@@ -135,21 +135,21 @@ OptionMenu "RS_HandHUDOffWrist"
 
 	StaticText " "
 	StaticText "Position", gold
-	Slider "Left / Right",   "rs_handhud_o_ofs_x", -60, 60, 0.5, 2
-	Slider "Forward / Back", "rs_handhud_o_ofs_y", -60, 60, 0.5, 2
-	Slider "Down / Up",      "rs_handhud_o_ofs_z", -60, 60, 0.5, 2
+	Slider "Left / Right",   "rs_hh_o_ofs_x", -60, 60, 0.5, 2
+	Slider "Forward / Back", "rs_hh_o_ofs_y", -60, 60, 0.5, 2
+	Slider "Down / Up",      "rs_hh_o_ofs_z", -60, 60, 0.5, 2
 
 	StaticText " "
 	StaticText "Rotation", gold
-	Slider "Yaw",   "rs_handhud_o_yaw",   -180, 180, 5, 0
-	Slider "Pitch", "rs_handhud_o_pitch", -180, 180, 5, 0
-	Slider "Roll",  "rs_handhud_o_roll",  -180, 180, 5, 0
+	Slider "Yaw",   "rs_hh_o_yaw",   -180, 180, 5, 0
+	Slider "Pitch", "rs_hh_o_pitch", -180, 180, 5, 0
+	Slider "Roll",  "rs_hh_o_roll",  -180, 180, 5, 0
 
 	StaticText " "
-	Slider "Size", "rs_handhud_o_scale", 0, 300, 5, 0
+	Slider "Size", "rs_hh_o_scale", 0.1, 5.0, 0.1, 2
 
 	StaticText " "
-	SafeCommand "Reset off wrist", "resetcvar rs_handhud_o_on rs_handhud_o_role rs_handhud_o_roll_gate rs_handhud_o_ofs_x rs_handhud_o_ofs_y rs_handhud_o_ofs_z rs_handhud_o_yaw rs_handhud_o_pitch rs_handhud_o_roll rs_handhud_o_scale"
+	SafeCommand "Reset off wrist", "resetcvar rs_handhud_o_on rs_handhud_o_role rs_handhud_o_roll_gate rs_hh_o_ofs_x rs_hh_o_ofs_y rs_hh_o_ofs_z rs_hh_o_yaw rs_hh_o_pitch rs_hh_o_roll rs_hh_o_scale"
 }
 
 // ================================================================== main gun =
@@ -167,21 +167,21 @@ OptionMenu "RS_HandHUDMainGun"
 
 	StaticText " "
 	StaticText "Position", gold
-	Slider "Left / Right",   "rs_handhud_gm_ofs_x", -60, 60, 0.5, 2
-	Slider "Forward / Back", "rs_handhud_gm_ofs_y", -60, 60, 0.5, 2
-	Slider "Down / Up",      "rs_handhud_gm_ofs_z", -60, 60, 0.5, 2
+	Slider "Left / Right",   "rs_hh_gm_ofs_x", -60, 60, 0.5, 2
+	Slider "Forward / Back", "rs_hh_gm_ofs_y", -60, 60, 0.5, 2
+	Slider "Down / Up",      "rs_hh_gm_ofs_z", -60, 60, 0.5, 2
 
 	StaticText " "
 	StaticText "Rotation", gold
-	Slider "Yaw",   "rs_handhud_gm_yaw",   -180, 180, 5, 0
-	Slider "Pitch", "rs_handhud_gm_pitch", -180, 180, 5, 0
-	Slider "Roll",  "rs_handhud_gm_roll",  -180, 180, 5, 0
+	Slider "Yaw",   "rs_hh_gm_yaw",   -180, 180, 5, 0
+	Slider "Pitch", "rs_hh_gm_pitch", -180, 180, 5, 0
+	Slider "Roll",  "rs_hh_gm_roll",  -180, 180, 5, 0
 
 	StaticText " "
-	Slider "Size", "rs_handhud_gm_scale", 0, 300, 5, 0
+	Slider "Size", "rs_hh_gm_scale", 0.1, 5.0, 0.1, 2
 
 	StaticText " "
-	SafeCommand "Reset main gun", "resetcvar rs_handhud_gm_on rs_handhud_gm_role rs_handhud_gm_ofs_x rs_handhud_gm_ofs_y rs_handhud_gm_ofs_z rs_handhud_gm_yaw rs_handhud_gm_pitch rs_handhud_gm_roll rs_handhud_gm_scale"
+	SafeCommand "Reset main gun", "resetcvar rs_handhud_gm_on rs_handhud_gm_role rs_hh_gm_ofs_x rs_hh_gm_ofs_y rs_hh_gm_ofs_z rs_hh_gm_yaw rs_hh_gm_pitch rs_hh_gm_roll rs_hh_gm_scale"
 }
 
 // =================================================================== off gun =
@@ -195,21 +195,21 @@ OptionMenu "RS_HandHUDOffGun"
 
 	StaticText " "
 	StaticText "Position", gold
-	Slider "Left / Right",   "rs_handhud_go_ofs_x", -60, 60, 0.5, 2
-	Slider "Forward / Back", "rs_handhud_go_ofs_y", -60, 60, 0.5, 2
-	Slider "Down / Up",      "rs_handhud_go_ofs_z", -60, 60, 0.5, 2
+	Slider "Left / Right",   "rs_hh_go_ofs_x", -60, 60, 0.5, 2
+	Slider "Forward / Back", "rs_hh_go_ofs_y", -60, 60, 0.5, 2
+	Slider "Down / Up",      "rs_hh_go_ofs_z", -60, 60, 0.5, 2
 
 	StaticText " "
 	StaticText "Rotation", gold
-	Slider "Yaw",   "rs_handhud_go_yaw",   -180, 180, 5, 0
-	Slider "Pitch", "rs_handhud_go_pitch", -180, 180, 5, 0
-	Slider "Roll",  "rs_handhud_go_roll",  -180, 180, 5, 0
+	Slider "Yaw",   "rs_hh_go_yaw",   -180, 180, 5, 0
+	Slider "Pitch", "rs_hh_go_pitch", -180, 180, 5, 0
+	Slider "Roll",  "rs_hh_go_roll",  -180, 180, 5, 0
 
 	StaticText " "
-	Slider "Size", "rs_handhud_go_scale", 0, 300, 5, 0
+	Slider "Size", "rs_hh_go_scale", 0.1, 5.0, 0.1, 2
 
 	StaticText " "
-	SafeCommand "Reset off gun", "resetcvar rs_handhud_go_on rs_handhud_go_role rs_handhud_go_ofs_x rs_handhud_go_ofs_y rs_handhud_go_ofs_z rs_handhud_go_yaw rs_handhud_go_pitch rs_handhud_go_roll rs_handhud_go_scale"
+	SafeCommand "Reset off gun", "resetcvar rs_handhud_go_on rs_handhud_go_role rs_hh_go_ofs_x rs_hh_go_ofs_y rs_hh_go_ofs_z rs_hh_go_yaw rs_hh_go_pitch rs_hh_go_roll rs_hh_go_scale"
 }
 
 // ============================================================ layered digits =

@@ -1,52 +1,42 @@
-// RS_HandHUD -- four plates, one per mount.
+// RS_HandHUD -- the wrist readout.
 //
-// THE PLACEMENT SLIDERS LIVE ON THE `PlacementCVars` LINE, not in ZScript.
-// That keyword makes the renderer read, every frame, for this model:
+// RLVR'S MESHES, AT RLVR'S OFFSETS. w_dial.md3 and w_belt.md3 are authored for
+// a hand at Offset 0,-24,-10 and Scale 1 -- his holohud.txt says so -- so they
+// arrive the right size and in the right place with nothing guessed. The unit
+// quads that were here before (rs_plate.obj, rs_bracer.obj) were 2x1 map
+// units, about five centimetres, which is why they had to be scaled to be seen.
 //
-//     <prefix>_ofs_x   _ofs_y   _ofs_z      position in the hand's own frame
-//     <prefix>_yaw     _pitch   _roll       orientation, degrees
-//     <prefix>_scale                        uniform size
-//     <prefix>_scale_x _scale_y _scale_z    per axis
+// AND THAT SCALING IS WHAT WENT WRONG. PlacementCVars' _scale is a RAW
+// MULTIPLIER -- r_data/models.cpp assigns wPlaceScale = sc and multiplies it
+// straight into objectToWorldMatrix.scale. 100 is a hundred TIMES size, not a
+// hundred percent. The plate was four metres across sitting beside the hand,
+// which reads exactly like a billboard parked in the distance. That 100 came
+// from cranking the slider to maximum while the plate was blank, and shipping
+// it as a default made it permanent.
 //
-// So the menu pages tune these live with no script involved at all.
-// RS_Grenade places its held prop the same way (PlacementCVars rsvg_hm).
+// THE PREFIX CHANGED FROM rs_handhud_* TO rs_hh_* ON PURPOSE. These are `user`
+// cvars, so a value already in doomxr.ini beats any new default forever. The
+// only way to stop a saved 100 from applying is to stop asking for that name.
 //
-// The Offset / PitchOffset / UseHandOffsets block is the same base the hands
-// and the reload's in-hand magazine use: it puts the model at the hand origin,
-// and the sliders above move it from there.
+// Everything else is the wire the hands and the reload magazine already use:
+// UseHandOffsets puts the model at the hand, PitchOffset 90 stands it up, and
+// BaseFrame -- last, always -- is what a +DECOUPLEDANIMATIONS actor's model
+// lookup reads. Without it the psprite falls through to the sprite path and
+// draws nothing.
 //
-// BaseFrame, NOT FrameIndex, and it must come last. BaseFrame is the only
-// thing that registers into BaseSpriteModelFrames and sets hasmodel, which is
-// what a +DECOUPLEDANIMATIONS actor's model lookup reads. Without it the
-// psprite falls through to the sprite path and nothing is drawn.
-//
-// The Skin names a CANVAS declared in ANIMDEFS. It is bound here and never
-// rebound at runtime: A_ChangeModel sets a model override on the actor
-// instance, which takes the BaseSpriteModelFrames lookup out from under these
-// plates and makes them vanish entirely.
-//
-// rs_plate.obj is a flat quad; rs_bracer.obj is the same footprint and UV
-// layout folded into three panels to follow a wrist. Swapping one for the
-// other here is a drop-in -- placement and painting are unaffected.
+// Scale X is negated on the main hand exactly as the hand models negate it:
+// one mesh, mirrored, rather than two.
+
 
 // ---------------------------------------------------------------- main wrist
 Model RS_HandHUDPlateM
 {
-	Path "models"
-	// THE BRACER, NOT THE FLAT SLAB. Same footprint and same UV layout,
-	// folded into three panels: the middle square to you, the outer two
-	// hinged back 40 degrees so the edges follow the wrist down its sides
-	// instead of floating off the arm or burying themselves in it. The
-	// swap is a drop-in -- placement and painting are unaffected -- and it
-	// belongs HERE rather than in a runtime A_ChangeModel, which rebinds
-	// the model on the actor and takes the BaseSpriteModelFrames lookup
-	// out from under the plate. Guns keep rs_plate.obj: a readout bolted
-	// to a gun has no wrist to wrap.
-	Model 0 "rs_bracer.obj"
-	Skin 0 "RSHUDMAIN"
-	PlacementCVars rs_handhud_m
-	Scale 2.0 1.0 1.0
-	Offset 0.0 -18.0 -12.0
+	Path "models/rlvr"
+	Model 0 "w_dial.md3"
+	Skin 0 "watchface.png"
+	PlacementCVars rs_hh_m
+	Scale -1.0 1.0 1.0
+	Offset 0.0 -24.0 -10.0
 	UseHandOffsets
 	NOAUTOREVERSE
 	PitchOffset 90.0
@@ -54,25 +44,17 @@ Model RS_HandHUDPlateM
 	AngleOffset 0.0
 	BaseFrame
 }
+
 
 // ----------------------------------------------------------------- off wrist
 Model RS_HandHUDPlateO
 {
-	Path "models"
-	// THE BRACER, NOT THE FLAT SLAB. Same footprint and same UV layout,
-	// folded into three panels: the middle square to you, the outer two
-	// hinged back 40 degrees so the edges follow the wrist down its sides
-	// instead of floating off the arm or burying themselves in it. The
-	// swap is a drop-in -- placement and painting are unaffected -- and it
-	// belongs HERE rather than in a runtime A_ChangeModel, which rebinds
-	// the model on the actor and takes the BaseSpriteModelFrames lookup
-	// out from under the plate. Guns keep rs_plate.obj: a readout bolted
-	// to a gun has no wrist to wrap.
-	Model 0 "rs_bracer.obj"
-	Skin 0 "RSHUDOFF"
-	PlacementCVars rs_handhud_o
-	Scale 2.0 1.0 1.0
-	Offset 0.0 -18.0 -12.0
+	Path "models/rlvr"
+	Model 0 "w_dial.md3"
+	Skin 0 "watchface.png"
+	PlacementCVars rs_hh_o
+	Scale 1.0 1.0 1.0
+	Offset 0.0 -24.0 -10.0
 	UseHandOffsets
 	NOAUTOREVERSE
 	PitchOffset 90.0
@@ -81,18 +63,56 @@ Model RS_HandHUDPlateO
 	BaseFrame
 }
 
-// ------------------------------------------------------------------ main gun
-// Ships OFF (rs_handhud_gm_on). An on-gun readout has to be placed for the
-// weapon set in front of you, and one that arrives already floating beside a
-// gun reads as a bug rather than a feature.
+
+// -------------------------------------------------------------- wrist straps
+// A separate layer from the dial so it can be switched off on its own, and so
+// the dial can be tinted without the strap following it.
+Model RS_HandHUDBeltM
+{
+	Path "models/rlvr"
+	Model 0 "w_belt.md3"
+	Skin 0 "watchface.png"
+	PlacementCVars rs_hh_m
+	Scale -1.0 1.0 1.0
+	Offset 0.0 -24.0 -10.0
+	UseHandOffsets
+	NOAUTOREVERSE
+	PitchOffset 90.0
+	RollOffset 0.0
+	AngleOffset 0.0
+	BaseFrame
+}
+
+
+Model RS_HandHUDBeltO
+{
+	Path "models/rlvr"
+	Model 0 "w_belt.md3"
+	Skin 0 "watchface.png"
+	PlacementCVars rs_hh_o
+	Scale 1.0 1.0 1.0
+	Offset 0.0 -24.0 -10.0
+	UseHandOffsets
+	NOAUTOREVERSE
+	PitchOffset 90.0
+	RollOffset 0.0
+	AngleOffset 0.0
+	BaseFrame
+}
+
+
+// ----------------------------------------------------------------- gun plates
+// SHIP OFF. His on-gun backplate, authored for Offset 0,-32,-10. It bolts to
+// the weapon, and where that lands depends on the weapon set in front of you --
+// which is what the sliders are for and why no default is worth shipping on.
 Model RS_HandHUDPlateGM
 {
-	Path "models"
-	Model 0 "rs_plate.obj"
-	Skin 0 "RSHUDGUNM"
-	PlacementCVars rs_handhud_gm
-	Scale 2.0 1.0 1.0
-	Offset 0.0 -18.0 -12.0
+	Path "models/rlvr"
+	Model 0 "ammo_hud_bg.md3"
+	Skin 0 "ammo_bg1.png"
+	PlacementCVars rs_hh_gm
+	Scale -1.0 1.0 1.0
+	Offset 0.0 -32.0 -10.0
 	UseHandOffsets
 	NOAUTOREVERSE
 	PitchOffset 90.0
@@ -101,15 +121,15 @@ Model RS_HandHUDPlateGM
 	BaseFrame
 }
 
-// ------------------------------------------------------------------- off gun
+
 Model RS_HandHUDPlateGO
 {
-	Path "models"
-	Model 0 "rs_plate.obj"
-	Skin 0 "RSHUDGUNO"
-	PlacementCVars rs_handhud_go
-	Scale 2.0 1.0 1.0
-	Offset 0.0 -18.0 -12.0
+	Path "models/rlvr"
+	Model 0 "ammo_hud_bg.md3"
+	Skin 0 "ammo_bg1.png"
+	PlacementCVars rs_hh_go
+	Scale 1.0 1.0 1.0
+	Offset 0.0 -32.0 -10.0
 	UseHandOffsets
 	NOAUTOREVERSE
 	PitchOffset 90.0
